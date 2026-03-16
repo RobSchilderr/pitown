@@ -2,7 +2,7 @@
 
 <img width="750" height="500" alt="pitown" src="https://github.com/user-attachments/assets/7cc303b7-ae9a-4fa7-ac8d-a68588cc5abb" />
 
-Multi-agent orchestration layer built on top of [Pi](https://shittycodingagent.ai/) ([GitHub](https://github.com/jal-co/jalco-pi-mono)).
+Multi-agent orchestration layer built on top of [Pi](https://shittycodingagent.ai/).
 
 Pi is the single-agent coding CLI. Pi Town adds multi-agent coordination, persistent sessions, autonomous loops, and durable state.
 
