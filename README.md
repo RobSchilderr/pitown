@@ -11,44 +11,10 @@ It is **inspired by [Gas Town](https://github.com/steveyegge/gastown)** and the 
 
 > **Experimental:** Pi Town is still in an early experimental phase. It is not yet production-ready and is not yet recommended for unattended real-world usage without close oversight.
 
-## Overview
-
-Pi Town is for a workflow where humans do the high-leverage work during the day, and agents do bounded execution during the night.
-
-### Day shift
-Humans:
-- gather requirements
-- define goals
-- write specs and private plans
-- make architectural decisions
-- improve tests and validations
-- review what the agent produced
-
-### Night shift
-Pi Town + Pi:
-- load context
-- read private plans
-- work inside the target repo
-- persist durable local run artifacts
-- summarize progress, output, and blockers
-
-The goal is not to babysit a fragile live loop.
-The goal is to come back to understandable progress, durable evidence, and a system that can improve over time.
-
-## What problem does this solve?
-
-| Challenge | Pi Town approach |
-| --- | --- |
-| Agent context disappears between runs | Persist local run state and artifacts on disk |
-| Private planning should stay out of public repos | Use `--plan` and user-owned local plan directories |
-| Orchestration state should not pollute product repos | Store runtime state under `~/.pi-town` |
-| You want to point the tool at arbitrary repos | Use explicit `--repo` targeting |
-| You want a Pi-native external runner | Spawn one real Pi invocation from `pitown run` |
-
 ## Why Pi Town exists
 
 Pi Town is:
-- **Pi-native**
+- **Pi-native** orchestration for Pi agents
 - implemented in **TypeScript/Node**
 - **local filesystem-first**
 - **repo-agnostic** by default, using `--repo` and `--plan`
