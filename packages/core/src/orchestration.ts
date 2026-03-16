@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
-import { writeFileSync } from "node:fs"
+import { readFileSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
+import { hostname } from "node:os"
 import { fileURLToPath } from "node:url"
 import {
 	appendAgentMessage,
@@ -12,7 +13,7 @@ import {
 	readAgentState,
 	writeAgentState,
 } from "./agents.js"
-import { createTaskRecord, updateTaskRecordStatus, writeTaskRecord } from "./tasks.js"
+import { createTaskRecord, readTaskRecord, updateTaskRecordStatus, writeTaskRecord } from "./tasks.js"
 import { assertCommandAvailable, runCommandSync } from "./shell.js"
 import type { AgentSessionRecord, AgentStateSnapshot, TaskRecord } from "./types.js"
 
@@ -25,6 +26,7 @@ export interface SpawnAgentRunOptions {
 	appendedSystemPrompt?: string | null | undefined
 	extensionPath?: string | null | undefined
 	taskId?: string | null | undefined
+	autoResumeTarget?: AutoResumeTarget | null | undefined
 }
 
 export interface SpawnAgentRunResult {
@@ -43,6 +45,7 @@ export interface DelegateTaskOptions {
 	agentId?: string | null | undefined
 	appendedSystemPrompt?: string | null | undefined
 	extensionPath?: string | null | undefined
+	completionAutoResumeTarget?: AutoResumeTarget | null | undefined
 	task: string
 }
 
@@ -56,6 +59,23 @@ export interface DelegateTaskResult {
 export interface ResolvedAgentSession {
 	state: AgentStateSnapshot
 	session: AgentSessionRecord
+}
+
+export interface AutoResumeTarget {
+	agentId: string
+	message: string
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
+}
+
+export interface ResumeAgentTurnDetachedOptions {
+	repoRoot: string
+	artifactsDir: string
+	agentId: string
+	message: string
+	from?: string
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
 }
 
 export interface RunAgentTurnOptions {
@@ -105,6 +125,54 @@ function createDetachedRunnerInvocation(encodedPayload: string): { command: stri
 	return {
 		command: process.execPath,
 		args: [fileURLToPath(new URL("./agent-runner.mjs", import.meta.url)), encodedPayload],
+	}
+}
+
+function processAlive(pid: number): boolean {
+	if (!Number.isFinite(pid) || pid <= 0) return false
+	try {
+		process.kill(pid, 0)
+		return true
+	} catch {
+		return false
+	}
+}
+
+function getAgentWakeLockPath(artifactsDir: string, agentId: string) {
+	return `${getAgentDir(artifactsDir, agentId)}/auto-resume.lock.json`
+}
+
+function tryAcquireAgentWakeLock(artifactsDir: string, agentId: string): string | null {
+	const wakeLockPath = getAgentWakeLockPath(artifactsDir, agentId)
+
+	try {
+		const current = JSON.parse(readFileSync(wakeLockPath, "utf-8")) as { pid?: number }
+		if (typeof current.pid === "number" && processAlive(current.pid)) return null
+		rmSync(wakeLockPath, { force: true })
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+			rmSync(wakeLockPath, { force: true })
+		}
+	}
+
+	try {
+		writeFileSync(
+			wakeLockPath,
+			`${JSON.stringify(
+				{
+					pid: process.pid,
+					hostname: hostname(),
+					acquiredAt: new Date().toISOString(),
+				},
+				null,
+				2,
+			)}\n`,
+			{ encoding: "utf-8", flag: "wx" },
+		)
+		return wakeLockPath
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "EEXIST") return null
+		throw error
 	}
 }
 
@@ -176,6 +244,135 @@ export function resolveAgentSession(agentId: string, artifactsDir: string): Reso
 	}
 }
 
+export function resumeAgentTurnDetached(options: ResumeAgentTurnDetachedOptions): SpawnAgentRunResult | null {
+	assertCommandAvailable("pi")
+
+	const resolved = resolveAgentSession(options.agentId, options.artifactsDir)
+	if (
+		resolved.state.status === "running" ||
+		resolved.state.status === "starting" ||
+		resolved.state.session.processId !== null
+	) {
+		return null
+	}
+
+	const wakeLockPath = tryAcquireAgentWakeLock(options.artifactsDir, options.agentId)
+	if (wakeLockPath === null) return null
+
+	const piArgs = createPiInvocationArgs({
+		sessionPath: resolved.session.sessionPath,
+		prompt: options.message,
+		appendedSystemPrompt: options.appendedSystemPrompt,
+		extensionPath: options.extensionPath,
+	})
+	const startedAt = new Date().toISOString()
+	const encodedPayload = Buffer.from(
+		JSON.stringify({
+			kind: "turn",
+			repoRoot: options.repoRoot,
+			artifactsDir: options.artifactsDir,
+			agentId: options.agentId,
+			role: resolved.state.role,
+			message: options.message,
+			from: options.from ?? "system",
+			piArgs,
+			wakeLockPath,
+		}),
+		"utf-8",
+	).toString("base64url")
+	const runner = createDetachedRunnerInvocation(encodedPayload)
+
+	writeAgentState(
+		options.artifactsDir,
+		createAgentState({
+			...resolved.state,
+			status: "starting",
+			lastMessage: `Auto-resuming from ${options.from ?? "system"}: ${options.message}`,
+			waitingOn: null,
+			blocked: false,
+			session: createAgentSessionRecord({
+				sessionDir: resolved.session.sessionDir,
+				sessionId: resolved.session.sessionId,
+				sessionPath: resolved.session.sessionPath,
+				processId: null,
+				lastAttachedAt: resolved.session.lastAttachedAt,
+			}),
+		}),
+	)
+
+	const child = spawn(runner.command, runner.args, {
+		cwd: options.repoRoot,
+		detached: true,
+		env: process.env,
+		stdio: "ignore",
+	})
+	child.unref()
+
+	if (!child.pid) {
+		rmSync(wakeLockPath, { force: true })
+		throw new Error(`Failed to auto-resume ${resolved.state.role} run for ${options.agentId}`)
+	}
+
+	writeFileSync(
+		wakeLockPath,
+		`${JSON.stringify(
+			{
+				pid: child.pid,
+				hostname: hostname(),
+				acquiredAt: startedAt,
+			},
+			null,
+			2,
+		)}\n`,
+		"utf-8",
+	)
+
+	writeAgentState(
+		options.artifactsDir,
+		createAgentState({
+			...resolved.state,
+			status: "running",
+			lastMessage: `Auto-resumed from ${options.from ?? "system"}: ${options.message}`,
+			waitingOn: null,
+			blocked: false,
+			session: createAgentSessionRecord({
+				sessionDir: resolved.session.sessionDir,
+				sessionId: resolved.session.sessionId,
+				sessionPath: resolved.session.sessionPath,
+				processId: child.pid,
+				lastAttachedAt: resolved.session.lastAttachedAt,
+			}),
+		}),
+	)
+
+	writeFileSync(
+		`${getAgentDir(options.artifactsDir, options.agentId)}/latest-invocation.json`,
+		`${JSON.stringify(
+			{
+				command: "pi",
+				args: piArgs,
+				exitCode: null,
+				sessionDir: resolved.session.sessionDir,
+				sessionPath: resolved.session.sessionPath,
+				sessionId: resolved.session.sessionId,
+				processId: child.pid,
+				startedAt,
+			},
+			null,
+			2,
+		)}\n`,
+		"utf-8",
+	)
+
+	return {
+		launch: {
+			processId: child.pid,
+			startedAt,
+		},
+		latestSession: resolved.session,
+	}
+}
+
 export function queueAgentMessage(input: { artifactsDir: string; agentId: string; from: string; body: string }) {
 	const state = readAgentState(input.artifactsDir, input.agentId)
 	if (state === null) throw new Error(`Unknown agent: ${input.agentId}`)
@@ -205,6 +402,32 @@ export function queueAgentMessage(input: { artifactsDir: string; agentId: string
 			}),
 		}),
 	)
+}
+
+export function notifyTaskDelegator(input: {
+	artifactsDir: string
+	agentId: string
+	taskId: string | null
+	completionMessage: string
+	outcome: "completed" | "blocked"
+}) {
+	if (!input.taskId) return
+
+	const task = readTaskRecord(input.artifactsDir, input.taskId)
+	if (task === null) return
+	if (!task.createdBy || task.createdBy === input.agentId) return
+	if (readAgentState(input.artifactsDir, task.createdBy) === null) return
+
+	const statusText = input.outcome === "completed" ? "completed" : "blocked"
+	const title = task.title.trim()
+	const taskLabel = title.length > 0 ? `${task.taskId} (${title})` : task.taskId
+
+	queueAgentMessage({
+		artifactsDir: input.artifactsDir,
+		agentId: task.createdBy,
+		from: input.agentId,
+		body: `${input.agentId} ${statusText} ${taskLabel}: ${input.completionMessage}`,
+	})
 }
 
 export function updateAgentStatus(input: {
@@ -303,6 +526,7 @@ export function spawnAgentRun(options: SpawnAgentRunOptions): SpawnAgentRunResul
 			taskId: options.taskId ?? null,
 			sessionDir,
 			piArgs,
+			autoResumeTarget: options.autoResumeTarget ?? null,
 		}),
 		"utf-8",
 	).toString("base64url")
@@ -461,6 +685,7 @@ export function delegateTask(options: DelegateTaskOptions): DelegateTaskResult {
 		agentId,
 		appendedSystemPrompt: options.appendedSystemPrompt,
 		extensionPath: options.extensionPath,
+		autoResumeTarget: options.completionAutoResumeTarget,
 		task: options.task,
 		taskId: task.taskId,
 	})

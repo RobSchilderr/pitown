@@ -2,7 +2,7 @@ import {
 	delegateTask,
 	readAgentState,
 } from "../../core/src/index.js"
-import { resolvePiTownExtensionPath } from "@schilderlabs/pitown-package"
+import { readPiTownMayorPrompt, resolvePiTownExtensionPath } from "@schilderlabs/pitown-package"
 import { normalizeAgentId } from "./agent-id.js"
 import { resolveRepoContext } from "./repo-context.js"
 
@@ -85,6 +85,15 @@ export function delegateTownTask(argv = process.argv.slice(2)) {
 		agentId: flags.agentId,
 		task: flags.task,
 		extensionPath: resolvePiTownExtensionPath(),
+		completionAutoResumeTarget:
+			fromAgentId === "mayor"
+				? {
+						agentId: "mayor",
+						message: "New agent check-ins arrived. Review the latest board and inbox updates, then decide the next bounded action.",
+						extensionPath: resolvePiTownExtensionPath(),
+						appendedSystemPrompt: readPiTownMayorPrompt(),
+					}
+				: null,
 	})
 
 	console.log("[pitown] delegate")

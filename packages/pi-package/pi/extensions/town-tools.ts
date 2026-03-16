@@ -121,6 +121,7 @@ function buildStartupContext(context: TownAgentContext): string {
 
 	const currentTask = state.task ?? "no active task"
 	const board = formatBoard(context.artifactsDir)
+	const inbox = formatMailbox(context.artifactsDir, context.agentId, "inbox")
 	const tools = getAllowedTools(context.role).join(", ")
 
 	return [
@@ -131,6 +132,9 @@ function buildStartupContext(context: TownAgentContext): string {
 		"",
 		"Current board:",
 		board,
+		"",
+		"Recent inbox:",
+		inbox,
 	].join("\n")
 }
 
@@ -142,7 +146,7 @@ function requireTownContext(ctx: ExtensionContext): TownAgentContext {
 	return context
 }
 
-const notifiedCompletions = new Set<string>()
+const notifiedMayorInboxMessages = new Set<string>()
 
 export function registerTownTools(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (_event, ctx) => {
@@ -165,21 +169,23 @@ export function registerTownTools(pi: ExtensionAPI) {
 
 		const agents = listAgentStates(context.artifactsDir)
 		const workers = agents.filter((a) => a.agentId !== "mayor")
+		const recentMayorMessages = readAgentMessages(context.artifactsDir, context.agentId, "inbox").slice(-5)
+
+		for (const record of recentMayorMessages) {
+			if (record.from === "human" || record.from === "system") continue
+
+			const key = `${record.createdAt}:${record.from}:${record.body}`
+			if (notifiedMayorInboxMessages.has(key)) continue
+
+			notifiedMayorInboxMessages.add(key)
+			const level = /\bblocked\b|\bfailed\b|\bstopped\b/i.test(record.body) ? "warning" : "info"
+			ctx.ui.notify(record.body, level)
+		}
+
 		if (workers.length === 0) {
 			ctx.ui.setStatus("pitown-workers", undefined)
 			ctx.ui.setWidget("pitown-workers", undefined)
 			return
-		}
-
-		for (const w of workers) {
-			if ((w.status === "idle" || w.status === "completed") && !notifiedCompletions.has(w.agentId)) {
-				notifiedCompletions.add(w.agentId)
-				ctx.ui.notify(`✓ ${w.agentId} finished: ${w.lastMessage ?? w.task ?? "done"}`, "info")
-			}
-			if ((w.status === "blocked" || w.status === "failed" || w.status === "stopped") && !notifiedCompletions.has(w.agentId)) {
-				notifiedCompletions.add(w.agentId)
-				ctx.ui.notify(`✗ ${w.agentId} blocked: ${w.lastMessage ?? "needs attention"}`, "warning")
-			}
 		}
 
 		const running = workers.filter((a) => a.status === "running" || a.status === "starting").length
@@ -241,6 +247,15 @@ export function registerTownTools(pi: ExtensionAPI) {
 				agentId: input.agentId ?? null,
 				extensionPath: resolvePiTownExtensionPath(),
 				appendedSystemPrompt: input.role === "mayor" ? readPiTownMayorPrompt() : null,
+				completionAutoResumeTarget:
+					context.agentId === "mayor"
+						? {
+								agentId: "mayor",
+								message: "New agent check-ins arrived. Review the latest board and inbox updates, then decide the next bounded action.",
+								extensionPath: resolvePiTownExtensionPath(),
+								appendedSystemPrompt: readPiTownMayorPrompt(),
+							}
+						: null,
 			})
 
 			return {

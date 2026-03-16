@@ -175,7 +175,7 @@ describe("pi town extension", () => {
 				message: expect.objectContaining({
 					customType: "pitown-context",
 					display: false,
-					content: expect.stringContaining("Allowed Pi Town tools: pitown_board, pitown_delegate"),
+					content: expect.stringContaining("Recent inbox:\ninbox: empty"),
 				}),
 			}),
 		)
@@ -234,6 +234,46 @@ describe("pi town extension", () => {
 			expect.objectContaining({
 				status: "completed",
 			}),
+		)
+	})
+
+	it("shows queued mayor inbox updates as mayor UI notifications on the next turn", async () => {
+		const { artifactsDir, repoRoot, mayorSessionFile, workerSessionFile } = createRepoArtifacts()
+		const { handlers, tools } = setup()
+		const ctx = createToolContext(repoRoot, mayorSessionFile)
+
+		writeAgentState(
+			artifactsDir,
+			createAgentState({
+				agentId: "mayor",
+				role: "mayor",
+				status: "queued",
+				task: "coordinate town work",
+				lastMessage: "worker-001 completed task-123",
+				session: createAgentSessionRecord({
+					sessionDir: join(artifactsDir, "agents", "mayor", "sessions"),
+					sessionPath: mayorSessionFile,
+					sessionId: "mayor",
+				}),
+			}),
+		)
+
+		await tools.get("pitown_message_agent")?.execute(
+			"tool-call",
+			{ agentId: "mayor", body: "worker-001 completed task-123 (fix the failing auth flow): auth flow fixed" },
+			undefined,
+			() => {},
+			createToolContext(repoRoot, workerSessionFile),
+		)
+
+		await handlers["before_agent_start"]?.[1]?.(
+			{ systemPrompt: "base", prompt: "follow up", images: [] },
+			ctx,
+		)
+
+		expect(ctx.ui.notify).toHaveBeenCalledWith(
+			"worker-001 completed task-123 (fix the failing auth flow): auth flow fixed",
+			"info",
 		)
 	})
 

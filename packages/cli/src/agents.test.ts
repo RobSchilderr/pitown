@@ -290,6 +290,27 @@ describe("agent control plane commands", () => {
 		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "inbox.jsonl"), "utf-8")).toContain(
 			`Delegated by mayor as ${workerState.taskId}`,
 		)
+		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "inbox.jsonl"), "utf-8")).toContain(
+			`worker-001 completed ${workerState.taskId} (fix callback auth regression): pi worker summary`,
+		)
+		const mayorSessionPath = join(
+			home,
+			".pi-town",
+			"repos",
+			repoSlug,
+			"agents",
+			"mayor",
+			"sessions",
+			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
+		)
+		await waitFor(() => {
+			const invocations = readFileSync(logPath, "utf-8").trim().split("\n")
+			expect(invocations.length).toBeGreaterThanOrEqual(3)
+			expect(invocations.at(-1)).toContain(`--session ${mayorSessionPath}`)
+			expect(invocations.at(-1)).toContain("New agent check-ins arrived.")
+			expect(invocations.at(-1)).toContain("--append-system-prompt")
+			expect(invocations.at(-1)).toContain("--extension")
+		})
 	})
 
 	it("opens the mayor for the current repo without requiring --repo", () => {
