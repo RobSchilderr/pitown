@@ -1,7 +1,11 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core"
 import type { AssistantMessage, TextContent } from "@mariozechner/pi-ai"
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent"
 import { resolveTownAgentContext } from "#pitown-town-tools"
+
+interface AgentMessage {
+	role: string
+	content?: unknown
+}
 
 interface PlanTodo {
 	step: number
@@ -163,7 +167,7 @@ export function registerMayorPlanMode(pi: ExtensionAPI) {
 				return
 			}
 
-			ctx.ui.notify(renderTodos(todos), todos.length === 0 ? "info" : "success")
+			ctx.ui.notify(renderTodos(todos), "info")
 		},
 	})
 

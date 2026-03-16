@@ -1,19 +1,14 @@
 {
 	"name": "@schilderlabs/pitown",
-	"version": "0.2.1",
-	"description": "Globally installable CLI for Pi Town",
+	"version": "0.2.3",
 	"type": "module",
-	"bin": {
-		"pitown": "./dist/index.mjs"
-	},
+	"types": "./dist/index.d.mts",
 	"exports": {
 		".": {
 			"import": "./dist/index.mjs",
 			"types": "./dist/index.d.mts"
 		}
 	},
-	"types": "./dist/index.d.mts",
-	"files": ["dist", "README.md"],
 	"engines": {
 		"node": ">=24"
 	},
@@ -38,17 +33,26 @@
 		"typescript": "5.9.2",
 		"vitest": "4.0.18"
 	},
-	"keywords": ["pitown", "pi-town", "cli", "orchestration", "automation"],
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/RobSchilderr/pitown.git"
+	"bin": {
+		"pitown": "./dist/index.mjs"
 	},
+	"bugs": "https://github.com/RobSchilderr/pitown/issues",
+	"description": "Globally installable CLI for Pi Town",
+	"files": [
+		"dist",
+		"README.md"
+	],
 	"homepage": "https://github.com/RobSchilderr/pitown#readme",
-	"bugs": {
-		"url": "https://github.com/RobSchilderr/pitown/issues"
-	},
+	"keywords": [
+		"automation",
+		"cli",
+		"orchestration",
+		"pi-town",
+		"pitown"
+	],
+	"license": "MIT",
 	"publishConfig": {
 		"access": "public"
 	},
-	"license": "MIT"
+	"repository": "RobSchilderr/pitown.git"
 }

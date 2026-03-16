@@ -82,10 +82,20 @@ const config = {
 			pinVersion: "workspace:*",
 		},
 		{
-			label: "Set version for all local packages",
-			dependencies: ["$LOCAL"],
+			label: "Keep published package versions in sync",
+			dependencies: [
+				"@schilderlabs/pitown",
+				"@schilderlabs/pitown-core",
+				"@schilderlabs/pitown-package",
+			],
 			dependencyTypes: ["local"],
-			pinVersion: "0.1.0",
+			policy: "sameRange",
+		},
+		{
+			label: "Allow pi-coding-agent peer/dev split",
+			dependencies: ["@mariozechner/pi-coding-agent"],
+			dependencyTypes: ["dev", "peer"],
+			isIgnored: true,
 		},
 	],
 }

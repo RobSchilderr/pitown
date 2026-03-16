@@ -5,17 +5,17 @@ import { afterEach, describe, expect, it } from "vitest"
 import { runController } from "./controller.js"
 import { readJsonl } from "./events.js"
 
-const originalHome = process.env.HOME
+const originalHome = process.env["HOME"]
 
 afterEach(() => {
-	if (originalHome === undefined) delete process.env.HOME
-	else process.env.HOME = originalHome
+	if (originalHome === undefined) delete process.env["HOME"]
+	else process.env["HOME"] = originalHome
 })
 
 describe("runController", () => {
 	it("fails with a clear message when the pi command is missing", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-cwd-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const missingCommand = join(cwd, "missing-pi")
 
@@ -32,7 +32,7 @@ describe("runController", () => {
 
 	it("surfaces a clear auth hint when pi is installed but not authenticated", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-cwd-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = join(cwd, "fake-pi-auth.sh")
 		writeFileSync(
@@ -62,7 +62,7 @@ describe("runController", () => {
 
 	it("performs one pi invocation and writes durable run artifacts", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-cwd-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const planPath = join(cwd, "plans")
 		mkdirSync(planPath, { recursive: true })

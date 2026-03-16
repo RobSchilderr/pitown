@@ -22,27 +22,22 @@ export function printHelp(showAdvanced = false) {
 			"pitown",
 			"",
 			"Usage:",
-			"  pitown",
-			'  pitown mayor [--repo <path>] ["message"]',
+			'  pitown [--repo <path>] ["message"]',
 			"  pitown board [--repo <path>]",
 			"  pitown peek [--repo <path>] [agent]",
-			'  pitown msg [--repo <path>] mayor "message"',
+			'  pitown msg [--repo <path>] <agent> "message"',
 			"  pitown status [--repo <path>]",
 			"  pitown doctor",
-			"  pitown help",
-			"  pitown help --all",
-			"  pitown --help",
-			"  pitown -v",
 			"  pitown --version",
 			"",
 			"Mayor workflow:",
 			"  pitown",
-			"  pitown mayor",
-			'  pitown mayor "plan the next milestones"',
+			'  pitown "plan the next milestones"',
 			"  /plan",
 			"  /todos",
 			"",
 			"Inside the mayor session, `/plan` toggles read-only planning mode and `/todos` shows the captured plan.",
+			"Aliases still work: `pitown mayor`, `pitown help`, `pitown --help`, `pitown -v`.",
 			"",
 			"If --repo is omitted, Pi Town uses the repo for the current working directory when possible.",
 			...(showAdvanced
@@ -82,7 +77,10 @@ export function runCli(argv = process.argv.slice(2)) {
 			break
 		case "run": {
 			const result = runTown(args)
-			if (result.piInvocation.exitCode !== 0) process.exitCode = result.piInvocation.exitCode
+			const latestIteration = result.iterations[result.iterations.length - 1]
+			if (latestIteration && latestIteration.controllerResult.piInvocation.exitCode !== 0) {
+				process.exitCode = latestIteration.controllerResult.piInvocation.exitCode
+			}
 			break
 		}
 		case "loop": {

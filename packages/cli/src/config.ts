@@ -47,6 +47,7 @@ export function parseCliFlags(argv: string[]): CliFlags {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
+		if (arg === undefined) continue
 
 		if (arg === "--help" || arg === "-h") {
 			flags.help = true
@@ -104,6 +105,7 @@ export function parseOptionalRepoFlag(argv: string[]): OptionalRepoFlagResult {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
+		if (arg === undefined) continue
 
 		if (arg.startsWith("--repo=")) {
 			repo = arg.slice("--repo=".length)
@@ -121,7 +123,7 @@ export function parseOptionalRepoFlag(argv: string[]): OptionalRepoFlagResult {
 		rest.push(arg)
 	}
 
-	return { repo, rest }
+	return repo === undefined ? { rest } : { repo, rest }
 }
 
 export function loadUserConfig(): UserConfig {

@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { runDoctor } from "./doctor.js"
 
-const originalPath = process.env.PATH
+const originalPath = process.env["PATH"]
 
 function createFakePi(binDir: string, options?: { stdout?: string; stderr?: string; exitCode?: number }) {
 	const piPath = join(binDir, "pi")
@@ -42,13 +42,13 @@ function captureLogs(fn: () => void): string[] {
 }
 
 afterEach(() => {
-	if (originalPath === undefined) delete process.env.PATH
-	else process.env.PATH = originalPath
+	if (originalPath === undefined) delete process.env["PATH"]
+	else process.env["PATH"] = originalPath
 })
 
 describe("runDoctor", () => {
 	it("reports when the pi cli is missing", () => {
-		process.env.PATH = ""
+		process.env["PATH"] = ""
 		const output = captureLogs(() => {
 			expect(runDoctor().ok).toBe(false)
 		})
@@ -62,7 +62,7 @@ describe("runDoctor", () => {
 		const home = mkdtempSync(join(tmpdir(), "pitown-doctor-"))
 		const binDir = join(home, "bin")
 		createFakePi(binDir, { stderr: "No models available.\n", exitCode: 1 })
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const output = captureLogs(() => {
 			expect(runDoctor().ok).toBe(false)
@@ -77,7 +77,7 @@ describe("runDoctor", () => {
 		const home = mkdtempSync(join(tmpdir(), "pitown-doctor-"))
 		const binDir = join(home, "bin")
 		createFakePi(binDir)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const output = captureLogs(() => {
 			expect(runDoctor().ok).toBe(true)

@@ -19,6 +19,8 @@
 		"typescript-eslint": "8.46.0"
 	},
 	"description": "Shared ESLint configuration for the Pi Town workspace",
-	"files": ["*.js"],
+	"files": [
+		"*.js"
+	],
 	"license": "MIT"
 }

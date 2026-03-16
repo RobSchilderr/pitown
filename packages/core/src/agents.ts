@@ -50,7 +50,7 @@ export function getSessionIdFromPath(sessionPath: string | null | undefined): st
 }
 
 export function createAgentSessionRecord(
-	input?: Partial<Pick<AgentSessionRecord, "sessionDir" | "sessionId" | "sessionPath" | "lastAttachedAt">>,
+	input?: Partial<Pick<AgentSessionRecord, "sessionDir" | "sessionId" | "sessionPath" | "processId" | "lastAttachedAt">>,
 ): AgentSessionRecord {
 	return {
 		runtime: "pi",
@@ -58,6 +58,7 @@ export function createAgentSessionRecord(
 		sessionDir: input?.sessionDir ?? null,
 		sessionId: input?.sessionId ?? null,
 		sessionPath: input?.sessionPath ?? null,
+		processId: input?.processId ?? null,
 		lastAttachedAt: input?.lastAttachedAt ?? null,
 	}
 }

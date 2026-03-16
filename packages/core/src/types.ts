@@ -28,6 +28,7 @@ export interface AgentSessionRecord {
 	sessionDir: string | null
 	sessionId: string | null
 	sessionPath: string | null
+	processId: number | null
 	lastAttachedAt: string | null
 }
 
@@ -182,6 +183,7 @@ export type LoopStopReason =
 	| "all-tasks-completed"
 	| "all-remaining-tasks-blocked"
 	| "mayor-blocked"
+	| "mayor-idle-no-work"
 	| "max-iterations-reached"
 	| "max-wall-time-reached"
 	| "pi-exit-nonzero"
@@ -192,6 +194,7 @@ export interface LoopOptions {
 	maxIterations?: number
 	maxWallTimeMs?: number
 	stopOnPiFailure?: boolean
+	stopOnMayorIdleNoWork?: boolean
 	interruptRateThreshold?: number | null
 	onIterationComplete?: (iteration: LoopIterationResult) => void
 }

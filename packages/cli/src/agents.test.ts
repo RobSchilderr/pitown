@@ -12,16 +12,16 @@ import { messageTownAgent } from "./msg.js"
 import { peekTownAgent } from "./peek.js"
 import { spawnTownAgent } from "./spawn.js"
 
-const originalHome = process.env.HOME
-const originalPath = process.env.PATH
+const originalHome = process.env["HOME"]
+const originalPath = process.env["PATH"]
 const originalCwd = process.cwd()
 
 afterEach(() => {
-	if (originalHome === undefined) delete process.env.HOME
-	else process.env.HOME = originalHome
+	if (originalHome === undefined) delete process.env["HOME"]
+	else process.env["HOME"] = originalHome
 
-	if (originalPath === undefined) delete process.env.PATH
-	else process.env.PATH = originalPath
+	if (originalPath === undefined) delete process.env["PATH"]
+	else process.env["PATH"] = originalPath
 
 	process.chdir(originalCwd)
 })
@@ -70,14 +70,31 @@ function createFakePi(binDir: string, logPath: string) {
 	chmodSync(piPath, 0o755)
 }
 
+async function waitFor(assertion: () => void, timeoutMs = 2_000) {
+	const deadline = Date.now() + timeoutMs
+	let lastError: Error | null = null
+
+	while (Date.now() < deadline) {
+		try {
+			assertion()
+			return
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error))
+			await new Promise((resolve) => setTimeout(resolve, 25))
+		}
+	}
+
+	throw lastError ?? new Error("Timed out waiting for condition")
+}
+
 describe("agent control plane commands", () => {
-	it("spawns agents, queues messages, and shows them on the board", () => {
+	it("spawns agents, queues messages, and shows them on the board", async () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
@@ -93,7 +110,13 @@ describe("agent control plane commands", () => {
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
 
-		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]))
+		const spawnOutput = captureLogs(() =>
+			spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]),
+		)
+		expect(spawnOutput.join("\n")).toContain("- status: running")
+		await waitFor(() => {
+			expect(existsSync(sessionPath)).toBe(true)
+		})
 		const msgOutput = captureLogs(() => messageTownAgent(["--repo", repo, "mayor", "check the failing callback tests"]))
 		expect(msgOutput.join("\n")).toContain(`- delivered to session: ${sessionPath}`)
 		expect(msgOutput.join("\n")).toContain("- mayor response: pi worker summary")
@@ -124,13 +147,13 @@ describe("agent control plane commands", () => {
 		expect(invocations.at(-1)).toContain("--extension")
 	})
 
-	it("creates durable inbox state for spawned agents", () => {
+	it("creates durable inbox state for spawned agents", async () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
@@ -142,19 +165,21 @@ describe("agent control plane commands", () => {
 		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "inbox.jsonl"), "utf-8")).toContain(
 			"fix auth callback regression",
 		)
-		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "latest-stdout.txt"), "utf-8")).toContain(
-			"pi worker summary",
-		)
+		await waitFor(() => {
+			expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "latest-stdout.txt"), "utf-8")).toContain(
+				"pi worker summary",
+			)
+		})
 	})
 
-	it("attaches to and continues a specific persisted agent session", () => {
+	it("attaches to and continues a specific persisted agent session", async () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
@@ -171,6 +196,9 @@ describe("agent control plane commands", () => {
 			"sessions",
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
+		await waitFor(() => {
+			expect(existsSync(sessionPath)).toBe(true)
+		})
 
 		captureLogs(() => attachTownAgent(["--repo", repo, "mayor"]))
 		captureLogs(() => continueTownAgent(["--repo", repo, "mayor", "follow up on the auth test failures"]))
@@ -194,25 +222,41 @@ describe("agent control plane commands", () => {
 		expect(state.session.sessionId).toBe("12345678-1234-1234-1234-123456789abc")
 	})
 
-	it("delegates from the mayor into a worker with a durable task record", () => {
+	it("delegates from the mayor into a worker with a durable task record", async () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
 		mkdirSync(repo, { recursive: true })
 
 		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]))
+		await waitFor(() => {
+			const mayorState = JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8")) as {
+				status: string
+			}
+			expect(mayorState.status).toBe("idle")
+		})
 		const delegateOutput = captureLogs(() =>
 			delegateTownTask(["--repo", repo, "--from", "mayor", "--role", "worker", "--agent", "worker-001", "--task", "fix callback auth regression"]),
 		)
 		expect(delegateOutput.join("\n")).toContain("[pitown] delegate")
 		expect(delegateOutput.join("\n")).toContain("- agent: worker-001")
+		expect(delegateOutput.join("\n")).toContain("- status: running")
+
+		await waitFor(() => {
+			const workerState = JSON.parse(
+				readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "state.json"), "utf-8"),
+			) as {
+				status: string
+			}
+			expect(workerState.status).toBe("idle")
+		})
 
 		const workerState = JSON.parse(
 			readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "state.json"), "utf-8"),
@@ -250,12 +294,12 @@ describe("agent control plane commands", () => {
 
 	it("opens the mayor for the current repo without requiring --repo", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		mkdirSync(repo, { recursive: true })
@@ -290,12 +334,12 @@ describe("agent control plane commands", () => {
 
 	it("opens the mayor when running bare pitown in a repo", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		const logPath = join(home, "pi.log")
 		createFakePi(binDir, logPath)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		mkdirSync(repo, { recursive: true })

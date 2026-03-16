@@ -3,6 +3,8 @@
 	"private": true,
 	"version": "0.1.0",
 	"description": "Shared TypeScript configurations for the Pi Town workspace",
-	"files": ["*.json"],
+	"files": [
+		"*.json"
+	],
 	"license": "MIT"
 }

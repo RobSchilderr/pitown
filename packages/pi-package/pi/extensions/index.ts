@@ -2,8 +2,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
+import { listAgentStates } from "@schilderlabs/pitown-core"
 import { registerMayorPlanMode } from "#pitown-mayor-plan"
-import { registerTownTools } from "#pitown-town-tools"
+import { registerTownTools, resolveTownAgentContext } from "#pitown-town-tools"
 
 const extensionDir = dirname(fileURLToPath(import.meta.url))
 const agentsDir = join(extensionDir, "..", "agents")
@@ -59,6 +60,28 @@ export default function piTownPackage(pi: ExtensionAPI) {
 
 			const lines = ["Bundled Pi Town agents:", ...agents.map((agent) => `- ${agent.name}: ${agent.description}`)]
 			ctx.ui.notify(lines.join("\n"), "info")
+		},
+	})
+
+	pi.registerCommand("workers", {
+		description: "Show current worker status",
+		handler: async (_args, ctx) => {
+			const context = resolveTownAgentContext(ctx.sessionManager.getSessionFile())
+			if (!context) {
+				ctx.ui.notify("Not in a Pi Town session.", "warning")
+				return
+			}
+			const agents = listAgentStates(context.artifactsDir)
+			const workers = agents.filter((a) => a.agentId !== "mayor")
+			if (workers.length === 0) {
+				ctx.ui.notify("No workers spawned yet.", "info")
+				return
+			}
+			const lines = workers.map((w) => {
+				const task = w.task ? (w.task.length > 60 ? w.task.slice(0, 59) + "…" : w.task) : "—"
+				return `${w.agentId.padEnd(16)} ${w.status.padEnd(10)} ${task}`
+			})
+			ctx.ui.notify(["Workers:", ...lines].join("\n"), "info")
 		},
 	})
 }

@@ -2,15 +2,17 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { createAgentSessionRecord, createAgentState, writeAgentState } from "./agents.js"
 import { readJsonl } from "./events.js"
+import { createTaskRecord, writeTaskRecord } from "./tasks.js"
 import { evaluateStopCondition, runLoop, snapshotBoard } from "./loop.js"
 import type { BoardSnapshot, LoopIterationResult, MetricsSnapshot } from "./types.js"
 
-const originalHome = process.env.HOME
+const originalHome = process.env["HOME"]
 
 afterEach(() => {
-	if (originalHome === undefined) delete process.env.HOME
-	else process.env.HOME = originalHome
+	if (originalHome === undefined) delete process.env["HOME"]
+	else process.env["HOME"] = originalHome
 })
 
 function createFakePi(dir: string, exitCode = 0): string {
@@ -67,6 +69,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard(),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -82,6 +85,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard(),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -97,6 +101,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 1,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard(),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -112,6 +117,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 1,
 			stopOnPiFailure: false,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard(),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -127,6 +133,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard({ allTasksCompleted: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -142,11 +149,30 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard({ mayorBlocked: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
 		})
 		expect(result.stopReason).toBe("mayor-blocked")
+	})
+
+	it("optionally stops when the mayor is idle and no work remains", () => {
+		const result = evaluateStopCondition({
+			iteration: 1,
+			maxIterations: 10,
+			elapsedMs: 0,
+			maxWallTimeMs: 3_600_000,
+			piExitCode: 0,
+			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: true,
+			board: emptyBoard({
+				agents: [{ agentId: "mayor", status: "idle", blocked: false }],
+			}),
+			metrics: emptyMetrics(),
+			interruptRateThreshold: null,
+		})
+		expect(result.stopReason).toBe("mayor-idle-no-work")
 	})
 
 	it("stops when all remaining tasks blocked", () => {
@@ -157,6 +183,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard({ allRemainingTasksBlocked: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -174,6 +201,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard(),
 			metrics,
 			interruptRateThreshold: 0.5,
@@ -189,6 +217,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard({ hasQueuedOrRunningWork: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -205,6 +234,7 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
+			stopOnMayorIdleNoWork: false,
 			board: emptyBoard({ allTasksCompleted: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
@@ -246,7 +276,7 @@ describe("snapshotBoard", () => {
 		const board = snapshotBoard(artifactsDir)
 		expect(board.allTasksCompleted).toBe(true)
 		expect(board.tasks).toHaveLength(1)
-		expect(board.tasks[0].status).toBe("completed")
+		expect(board.tasks[0]!.status).toBe("completed")
 	})
 
 	it("detects mayor blocked", () => {
@@ -267,7 +297,7 @@ describe("snapshotBoard", () => {
 				waitingOn: "human",
 				blocked: true,
 				runId: null,
-				session: { runtime: "pi", persisted: true, sessionDir: null, sessionId: null, sessionPath: null, lastAttachedAt: null },
+				session: { runtime: "pi", persisted: true, sessionDir: null, sessionId: null, sessionPath: null, processId: null, lastAttachedAt: null },
 			}),
 			"utf-8",
 		)
@@ -301,7 +331,7 @@ describe("snapshotBoard", () => {
 describe("runLoop", () => {
 	it("stops at max iterations", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -323,7 +353,7 @@ describe("runLoop", () => {
 
 	it("stops on pi failure when stopOnPiFailure is true", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 1)
 
@@ -345,7 +375,7 @@ describe("runLoop", () => {
 
 	it("continues on pi failure when stopOnPiFailure is false", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 1)
 
@@ -369,7 +399,7 @@ describe("runLoop", () => {
 
 	it("respects wall time limit", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -392,7 +422,7 @@ describe("runLoop", () => {
 
 	it("stops when all tasks are completed", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -429,9 +459,83 @@ describe("runLoop", () => {
 		expect(result.totalIterations).toBe(1)
 	})
 
+	it("waits for background workers to settle before giving the mayor a follow-up turn", () => {
+		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		const artifactsDir = join(cwd, "state")
+		const fakePiPath = createFakePi(cwd, 0)
+
+		writeAgentState(
+			artifactsDir,
+			createAgentState({
+				agentId: "worker-001",
+				role: "worker",
+				status: "running",
+				taskId: "task-001",
+				task: "finish the auth fix",
+				lastMessage: "working",
+				session: createAgentSessionRecord(),
+			}),
+		)
+		writeTaskRecord(
+			artifactsDir,
+			createTaskRecord({
+				taskId: "task-001",
+				title: "finish the auth fix",
+				status: "running",
+				role: "worker",
+				assignedAgentId: "worker-001",
+				createdBy: "mayor",
+			}),
+		)
+
+		const result = runLoop({
+			runOptions: {
+				artifactsDir,
+				cwd,
+				goal: "test goal",
+				mode: "single-pi",
+				piCommand: fakePiPath,
+			},
+			maxIterations: 3,
+			onIterationComplete(iteration) {
+				if (iteration.iteration !== 1) return
+
+				writeAgentState(
+					artifactsDir,
+					createAgentState({
+						agentId: "worker-001",
+						role: "worker",
+						status: "idle",
+						taskId: "task-001",
+						task: "finish the auth fix",
+						lastMessage: "done",
+						session: createAgentSessionRecord(),
+					}),
+				)
+				writeTaskRecord(
+					artifactsDir,
+					createTaskRecord({
+						taskId: "task-001",
+						title: "finish the auth fix",
+						status: "completed",
+						role: "worker",
+						assignedAgentId: "worker-001",
+						createdBy: "mayor",
+					}),
+				)
+			},
+		})
+
+		expect(result.totalIterations).toBe(2)
+		expect(result.stopReason).toBe("all-tasks-completed")
+		expect(result.iterations[0]?.continueReason).toContain("queued or running work remains")
+		expect(result.iterations[1]?.stopReason).toBe("all-tasks-completed")
+	})
+
 	it("calls onIterationComplete for each iteration", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 		const callbacks: LoopIterationResult[] = []
@@ -451,13 +555,13 @@ describe("runLoop", () => {
 		})
 
 		expect(callbacks).toHaveLength(2)
-		expect(callbacks[0].iteration).toBe(1)
-		expect(callbacks[1].iteration).toBe(2)
+		expect(callbacks[0]!.iteration).toBe(1)
+		expect(callbacks[1]!.iteration).toBe(2)
 	})
 
 	it("writes distinct loop artifacts per iteration", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -486,7 +590,7 @@ describe("runLoop", () => {
 
 	it("each iteration produces a distinct run artifact", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -511,7 +615,7 @@ describe("runLoop", () => {
 
 	it("aggregates metrics across iterations", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 
@@ -533,7 +637,7 @@ describe("runLoop", () => {
 
 	it("loop summary is written with correct data", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-loop-"))
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-town-home-"))
+		process.env["HOME"] = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		const artifactsDir = join(cwd, "state")
 		const fakePiPath = createFakePi(cwd, 0)
 

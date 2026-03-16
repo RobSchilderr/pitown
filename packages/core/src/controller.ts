@@ -24,8 +24,8 @@ function createPiInvocationArgs(input: {
 	sessionDir?: string | null
 	sessionPath?: string | null
 	prompt: string
-	appendedSystemPrompt?: string | null
-	extensionPath?: string | null
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
 }) {
 	const args: string[] = []
 

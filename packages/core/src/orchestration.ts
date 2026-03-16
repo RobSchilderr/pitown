@@ -1,4 +1,7 @@
+import { spawn } from "node:child_process"
 import { writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { fileURLToPath } from "node:url"
 import {
 	appendAgentMessage,
 	createAgentSessionRecord,
@@ -19,15 +22,17 @@ export interface SpawnAgentRunOptions {
 	role: string
 	agentId: string
 	task: string | null
-	appendedSystemPrompt?: string | null
-	extensionPath?: string | null
-	taskId?: string | null
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
+	taskId?: string | null | undefined
 }
 
 export interface SpawnAgentRunResult {
-	piResult: { stdout: string; stderr: string; exitCode: number }
+	launch: {
+		processId: number
+		startedAt: string
+	}
 	latestSession: AgentSessionRecord
-	completionMessage: string
 }
 
 export interface DelegateTaskOptions {
@@ -35,16 +40,16 @@ export interface DelegateTaskOptions {
 	artifactsDir: string
 	fromAgentId: string
 	role: string
-	agentId?: string | null
-	appendedSystemPrompt?: string | null
-	extensionPath?: string | null
+	agentId?: string | null | undefined
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
 	task: string
 }
 
 export interface DelegateTaskResult {
 	task: TaskRecord
 	agentId: string
-	piResult: { stdout: string; stderr: string; exitCode: number }
+	launch: SpawnAgentRunResult["launch"]
 	latestSession: AgentSessionRecord
 }
 
@@ -72,8 +77,8 @@ function createPiInvocationArgs(input: {
 	sessionDir?: string | null
 	sessionPath?: string | null
 	prompt?: string | null
-	appendedSystemPrompt?: string | null
-	extensionPath?: string | null
+	appendedSystemPrompt?: string | null | undefined
+	extensionPath?: string | null | undefined
 }): string[] {
 	const args: string[] = []
 
@@ -85,6 +90,22 @@ function createPiInvocationArgs(input: {
 	if (input.prompt) args.push("-p", input.prompt)
 
 	return args
+}
+
+function createDetachedRunnerInvocation(encodedPayload: string): { command: string; args: string[] } {
+	const modulePath = fileURLToPath(import.meta.url)
+	if (modulePath.endsWith(".ts")) {
+		const require = createRequire(import.meta.url)
+		return {
+			command: process.execPath,
+			args: ["--import", require.resolve("tsx"), fileURLToPath(new URL("./agent-runner.ts", import.meta.url)), encodedPayload],
+		}
+	}
+
+	return {
+		command: process.execPath,
+		args: [fileURLToPath(new URL("./agent-runner.mjs", import.meta.url)), encodedPayload],
+	}
 }
 
 export function createRolePrompt(input: { role: string; task: string | null; repoRoot: string }): string {
@@ -149,6 +170,7 @@ export function resolveAgentSession(agentId: string, artifactsDir: string): Reso
 			sessionDir,
 			sessionId,
 			sessionPath,
+			processId: state.session.processId,
 			lastAttachedAt: new Date().toISOString(),
 		}),
 	}
@@ -178,6 +200,7 @@ export function queueAgentMessage(input: { artifactsDir: string; agentId: string
 				sessionDir: state.session.sessionDir ?? getAgentSessionsDir(input.artifactsDir, input.agentId),
 				sessionId: state.session.sessionId,
 				sessionPath: state.session.sessionPath,
+				processId: state.session.processId,
 				lastAttachedAt: state.session.lastAttachedAt,
 			}),
 		}),
@@ -267,24 +290,45 @@ export function spawnAgentRun(options: SpawnAgentRunOptions): SpawnAgentRunResul
 		appendedSystemPrompt: options.appendedSystemPrompt,
 		extensionPath: options.extensionPath,
 	})
-	const piResult = runCommandSync("pi", piArgs, {
+	const startedAt = new Date().toISOString()
+	const encodedPayload = Buffer.from(
+		JSON.stringify({
+			repoRoot: options.repoRoot,
+			artifactsDir: options.artifactsDir,
+			agentId: options.agentId,
+			role: options.role,
+			task: options.task,
+			taskId: options.taskId ?? null,
+			sessionDir,
+			piArgs,
+		}),
+		"utf-8",
+	).toString("base64url")
+	const runner = createDetachedRunnerInvocation(encodedPayload)
+	const child = spawn(runner.command, runner.args, {
 		cwd: options.repoRoot,
+		detached: true,
 		env: process.env,
+		stdio: "ignore",
 	})
-	const latestSession = getLatestAgentSession(options.artifactsDir, options.agentId)
-	const agentArtifactsDir = getAgentDir(options.artifactsDir, options.agentId)
-	writeFileSync(`${agentArtifactsDir}/latest-stdout.txt`, piResult.stdout, "utf-8")
-	writeFileSync(`${agentArtifactsDir}/latest-stderr.txt`, piResult.stderr, "utf-8")
+	child.unref()
+
+	if (!child.pid) {
+		throw new Error(`Failed to launch detached ${options.role} run for ${options.agentId}`)
+	}
+
 	writeFileSync(
-		`${agentArtifactsDir}/latest-invocation.json`,
+		`${getAgentDir(options.artifactsDir, options.agentId)}/latest-invocation.json`,
 		`${JSON.stringify(
 			{
 				command: "pi",
 				args: piArgs,
-				exitCode: piResult.exitCode,
+				exitCode: null,
 				sessionDir,
-				sessionPath: latestSession.sessionPath,
-				sessionId: latestSession.sessionId,
+				sessionPath: null,
+				sessionId: null,
+				processId: child.pid,
+				startedAt,
 			},
 			null,
 			2,
@@ -292,33 +336,15 @@ export function spawnAgentRun(options: SpawnAgentRunOptions): SpawnAgentRunResul
 		"utf-8",
 	)
 
-	const completionMessage =
-		piResult.stdout.trim() ||
-		(piResult.exitCode === 0 ? `${options.role} run completed` : `${options.role} run exited with code ${piResult.exitCode}`)
-	appendAgentMessage({
-		artifactsDir: options.artifactsDir,
-		agentId: options.agentId,
-		box: "outbox",
-		from: options.agentId,
-		body: completionMessage,
-	})
-	writeAgentState(
-		options.artifactsDir,
-		createAgentState({
-			...state,
-			status: piResult.exitCode === 0 ? "idle" : "blocked",
-			lastMessage: completionMessage,
-			blocked: piResult.exitCode !== 0,
-			waitingOn: piResult.exitCode === 0 ? null : "human-or-follow-up-run",
-			session: createAgentSessionRecord({
-				sessionDir: latestSession.sessionDir,
-				sessionId: latestSession.sessionId,
-				sessionPath: latestSession.sessionPath,
-			}),
+	return {
+		launch: {
+			processId: child.pid,
+			startedAt,
+		},
+		latestSession: createAgentSessionRecord({
+			sessionDir,
 		}),
-	)
-
-	return { piResult, latestSession, completionMessage }
+	}
 }
 
 export function runAgentTurn(options: RunAgentTurnOptions): RunAgentTurnResult {
@@ -395,6 +421,7 @@ export function runAgentTurn(options: RunAgentTurnOptions): RunAgentTurnResult {
 				sessionDir: latestSession.sessionDir,
 				sessionId: latestSession.sessionId,
 				sessionPath: latestSession.sessionPath,
+				processId: null,
 			}),
 		}),
 	)
@@ -425,7 +452,7 @@ export function delegateTask(options: DelegateTaskOptions): DelegateTaskResult {
 		body: `Delegated ${task.taskId} to ${agentId}: ${options.task}`,
 	})
 
-	const { piResult, latestSession } = spawnAgentRun({
+	const { launch, latestSession } = spawnAgentRun({
 		repoRoot: options.repoRoot,
 		artifactsDir: options.artifactsDir,
 		role: options.role,
@@ -446,18 +473,18 @@ export function delegateTask(options: DelegateTaskOptions): DelegateTaskResult {
 
 	writeTaskRecord(options.artifactsDir, {
 		...task,
-		status: piResult.exitCode === 0 ? "completed" : "blocked",
+		status: "running",
 		updatedAt: new Date().toISOString(),
 	})
 
 	return {
 		task: {
 			...task,
-			status: piResult.exitCode === 0 ? "completed" : "blocked",
+			status: "running",
 			updatedAt: new Date().toISOString(),
 		},
 		agentId,
-		piResult,
+		launch,
 		latestSession,
 	}
 }

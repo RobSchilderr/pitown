@@ -48,6 +48,7 @@ function parseLoopCliFlags(argv: string[]): LoopCliFlags {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
+		if (arg === undefined) continue
 
 		if (arg.startsWith("--repo=")) {
 			flags.repo = arg.slice("--repo=".length)

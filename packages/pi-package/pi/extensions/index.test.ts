@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import piTownPackage from "#pitown-extension"
 
-type RegisteredHandler = (event: unknown, ctx: unknown) => unknown | Promise<unknown>
+type RegisteredHandler = (...args: unknown[]) => unknown | Promise<unknown>
 
 function createRepoArtifacts() {
 	const repoRoot = mkdtempSync(join(tmpdir(), "pitown-repo-"))

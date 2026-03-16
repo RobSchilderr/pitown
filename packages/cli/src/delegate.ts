@@ -10,7 +10,7 @@ interface DelegateFlags {
 	from: string
 	role: string
 	agentId: string | null
-	task: string | null
+	task: string
 }
 
 function parseDelegateFlags(argv: string[]): DelegateFlags {
@@ -21,6 +21,7 @@ function parseDelegateFlags(argv: string[]): DelegateFlags {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
+		if (arg === undefined) continue
 
 		if (arg.startsWith("--from=")) {
 			from = arg.slice("--from=".length)
@@ -76,7 +77,7 @@ export function delegateTownTask(argv = process.argv.slice(2)) {
 	const fromState = readAgentState(repo.artifactsDir, fromAgentId)
 	if (fromState === null) throw new Error(`Unknown delegating agent: ${fromAgentId}`)
 
-	const { agentId, latestSession, piResult, task } = delegateTask({
+	const { agentId, latestSession, launch, task } = delegateTask({
 		repoRoot: repo.repoRoot,
 		artifactsDir: repo.artifactsDir,
 		fromAgentId: fromAgentId,
@@ -92,6 +93,8 @@ export function delegateTownTask(argv = process.argv.slice(2)) {
 	console.log(`- task id: ${task.taskId}`)
 	console.log(`- agent: ${agentId}`)
 	console.log(`- role: ${flags.role}`)
-	console.log(`- pi exit code: ${piResult.exitCode}`)
+	console.log(`- status: ${task.status}`)
+	console.log(`- launch pid: ${launch.processId}`)
 	if (latestSession.sessionPath) console.log(`- session: ${latestSession.sessionPath}`)
+	else if (latestSession.sessionDir) console.log(`- session dir: ${latestSession.sessionDir}`)
 }

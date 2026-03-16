@@ -17,6 +17,7 @@ import type {
 
 const DEFAULT_MAX_ITERATIONS = 10
 const DEFAULT_MAX_WALL_TIME_MS = 3_600_000
+const DEFAULT_BACKGROUND_POLL_MS = 250
 
 function createLoopId(): string {
 	return `loop-${new Date().toISOString().replace(/[:.]/g, "-")}`
@@ -24,6 +25,41 @@ function createLoopId(): string {
 
 function writeJson(path: string, value: unknown) {
 	writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf-8")
+}
+
+function sleepMs(ms: number) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function hasBackgroundWork(board: BoardSnapshot): boolean {
+	return (
+		board.agents.some(
+			(agent) =>
+				agent.agentId !== "mayor" &&
+				(agent.status === "queued" || agent.status === "running" || agent.status === "starting"),
+		) || board.tasks.some((task) => task.status === "queued" || task.status === "running")
+	)
+}
+
+function waitForBackgroundWorkToSettle(input: {
+	artifactsDir: string
+	maxWallTimeMs: number
+	loopStartedAt: number
+	pollIntervalMs?: number
+}): { timedOut: boolean; board: BoardSnapshot } {
+	const pollIntervalMs = input.pollIntervalMs ?? DEFAULT_BACKGROUND_POLL_MS
+	let board = snapshotBoard(input.artifactsDir)
+
+	while (hasBackgroundWork(board)) {
+		if (Date.now() - input.loopStartedAt >= input.maxWallTimeMs) {
+			return { timedOut: true, board }
+		}
+
+		sleepMs(pollIntervalMs)
+		board = snapshotBoard(input.artifactsDir)
+	}
+
+	return { timedOut: false, board }
 }
 
 export function snapshotBoard(artifactsDir: string): BoardSnapshot {
@@ -65,6 +101,7 @@ export function evaluateStopCondition(input: {
 	maxWallTimeMs: number
 	piExitCode: number
 	stopOnPiFailure: boolean
+	stopOnMayorIdleNoWork: boolean
 	board: BoardSnapshot
 	metrics: MetricsSnapshot
 	interruptRateThreshold: number | null
@@ -87,6 +124,11 @@ export function evaluateStopCondition(input: {
 
 	if (input.board.mayorBlocked) {
 		return { stopReason: "mayor-blocked", continueReason: null }
+	}
+
+	const mayor = input.board.agents.find((agent) => agent.agentId === "mayor")
+	if (input.stopOnMayorIdleNoWork && mayor && !input.board.hasQueuedOrRunningWork && input.board.tasks.length === 0 && mayor.status === "idle") {
+		return { stopReason: "mayor-idle-no-work", continueReason: null }
 	}
 
 	if (input.board.allRemainingTasksBlocked) {
@@ -162,6 +204,7 @@ export function runLoop(options: LoopOptions): LoopRunResult {
 	const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS
 	const maxWallTimeMs = options.maxWallTimeMs ?? DEFAULT_MAX_WALL_TIME_MS
 	const stopOnPiFailure = options.stopOnPiFailure ?? true
+	const stopOnMayorIdleNoWork = options.stopOnMayorIdleNoWork ?? false
 	const interruptRateThreshold = options.interruptRateThreshold ?? null
 	const loopId = createLoopId()
 	const artifactsDir = options.runOptions.artifactsDir
@@ -172,6 +215,7 @@ export function runLoop(options: LoopOptions): LoopRunResult {
 	const loopStartedAt = Date.now()
 	const iterations: LoopIterationResult[] = []
 	let finalStopReason: LoopStopReason = "max-iterations-reached"
+	let needsMayorFollowUp = false
 
 	appendJsonl(join(loopDir, "events.jsonl"), {
 		type: "loop_started",
@@ -183,6 +227,30 @@ export function runLoop(options: LoopOptions): LoopRunResult {
 	})
 
 	for (let iteration = 1; iteration <= maxIterations; iteration++) {
+		if (needsMayorFollowUp) {
+			const settled = waitForBackgroundWorkToSettle({
+				artifactsDir,
+				maxWallTimeMs,
+				loopStartedAt,
+			})
+
+			appendJsonl(join(loopDir, "events.jsonl"), {
+				type: "loop_background_work_settled",
+				loopId,
+				iteration,
+				timedOut: settled.timedOut,
+				boardSnapshot: settled.board,
+				createdAt: new Date().toISOString(),
+			})
+
+			if (settled.timedOut) {
+				finalStopReason = "max-wall-time-reached"
+				break
+			}
+
+			needsMayorFollowUp = false
+		}
+
 		const iterationStart = Date.now()
 
 		let controllerResult: ControllerRunResult
@@ -213,6 +281,7 @@ export function runLoop(options: LoopOptions): LoopRunResult {
 			maxWallTimeMs,
 			piExitCode: controllerResult.piInvocation.exitCode,
 			stopOnPiFailure,
+			stopOnMayorIdleNoWork,
 			board,
 			metrics,
 			interruptRateThreshold,
@@ -259,10 +328,13 @@ export function runLoop(options: LoopOptions): LoopRunResult {
 			finalStopReason = stopReason
 			break
 		}
+
+		needsMayorFollowUp = hasBackgroundWork(board)
 	}
 
 	const totalElapsedMs = Date.now() - loopStartedAt
-	const finalBoard = iterations.length > 0 ? iterations[iterations.length - 1].boardSnapshot : snapshotBoard(artifactsDir)
+	const lastIteration = iterations.at(-1)
+	const finalBoard = lastIteration ? lastIteration.boardSnapshot : snapshotBoard(artifactsDir)
 	const aggregate = aggregateMetrics(iterations)
 
 	const loopResult: LoopRunResult = {

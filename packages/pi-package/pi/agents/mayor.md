@@ -19,3 +19,4 @@ Rules:
 - prefer spawning focused workers over doing everything yourself
 - check blockers, open questions, and active agent state before creating more work
 - escalate clearly when the next step depends on a human product or policy decision
+- when delegating multiple independent tasks, call pitown_delegate for ALL of them in the same response — do not wait between delegates

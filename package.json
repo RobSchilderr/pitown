@@ -2,7 +2,6 @@
 	"name": "pitown-workspace",
 	"private": true,
 	"version": "0.1.0",
-	"description": "Pi Town monorepo workspace",
 	"type": "module",
 	"engines": {
 		"node": ">=24"
@@ -11,8 +10,11 @@
 	"scripts": {
 		"build": "turbo build",
 		"clean": "turbo clean && rm -rf node_modules",
+		"link:global": "pnpm build && pnpm --dir packages/cli link --global",
 		"lint": "turbo lint",
 		"pitown": "tsx packages/cli/src/index.ts",
+		"release": "node scripts/release.mjs",
+		"release:github": "node scripts/release.mjs --github",
 		"syncpack:check": "syncpack lint",
 		"syncpack:fix": "syncpack fix-mismatches && syncpack format",
 		"test": "turbo test",
@@ -20,17 +22,12 @@
 		"town:run": "tsx packages/cli/src/run.ts",
 		"town:status": "tsx packages/cli/src/status.ts",
 		"town:watch": "tsx packages/cli/src/watch.ts",
-		"typecheck": "turbo typecheck"
+		"typecheck": "turbo typecheck",
+		"version:check": "node scripts/version-packages.mjs --check",
+		"version:major": "node scripts/version-packages.mjs major",
+		"version:minor": "node scripts/version-packages.mjs minor",
+		"version:patch": "node scripts/version-packages.mjs patch"
 	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/RobSchilderr/pitown.git"
-	},
-	"homepage": "https://github.com/RobSchilderr/pitown#readme",
-	"bugs": {
-		"url": "https://github.com/RobSchilderr/pitown/issues"
-	},
-	"license": "MIT",
 	"devDependencies": {
 		"@eslint/js": "9.39.3",
 		"@ianvs/prettier-plugin-sort-imports": "4.7.1",
@@ -48,7 +45,16 @@
 		"typescript-eslint": "8.46.0",
 		"vitest": "4.0.18"
 	},
+	"bugs": "https://github.com/RobSchilderr/pitown/issues",
+	"description": "Pi Town monorepo workspace",
+	"homepage": "https://github.com/RobSchilderr/pitown#readme",
+	"license": "MIT",
 	"pnpm": {
-		"onlyBuiltDependencies": ["esbuild", "rolldown", "unrs-resolver"]
-	}
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"rolldown",
+			"unrs-resolver"
+		]
+	},
+	"repository": "RobSchilderr/pitown.git"
 }

@@ -1,29 +1,16 @@
 {
 	"name": "@schilderlabs/pitown-package",
-	"version": "0.2.1",
-	"description": "Pi package resources for Pi Town",
+	"version": "0.2.3",
 	"type": "module",
-	"imports": {
-		"#pitown-extension": "./pi/extensions/index.ts",
-		"#pitown-package-api": "./src/index.ts",
-		"#pitown-mayor-plan": "./pi/extensions/mayor-plan.ts",
-		"#pitown-town-tools": "./pi/extensions/town-tools.ts"
-	},
+	"types": "./dist/index.d.mts",
 	"exports": {
 		".": {
 			"import": "./dist/index.mjs",
 			"types": "./dist/index.d.mts"
 		}
 	},
-	"types": "./dist/index.d.mts",
-	"files": ["dist", "pi", "README.md"],
 	"engines": {
 		"node": ">=24"
-	},
-	"keywords": ["pitown", "pi-package", "pi", "agents", "orchestration", "night-shift"],
-	"pi": {
-		"extensions": ["./pi/extensions"],
-		"prompts": ["./pi/prompts"]
 	},
 	"scripts": {
 		"build": "tsdown",
@@ -31,12 +18,12 @@
 		"test": "vitest run --passWithNoTests",
 		"typecheck": "tsc --noEmit"
 	},
+	"peerDependencies": {
+		"@mariozechner/pi-coding-agent": "*"
+	},
 	"dependencies": {
 		"@mariozechner/pi-ai": "0.58.3",
 		"@schilderlabs/pitown-core": "workspace:*"
-	},
-	"peerDependencies": {
-		"@mariozechner/pi-coding-agent": "*"
 	},
 	"devDependencies": {
 		"@mariozechner/pi-coding-agent": "0.58.3",
@@ -45,16 +32,39 @@
 		"typescript": "5.9.2",
 		"vitest": "4.0.18"
 	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/RobSchilderr/pitown.git"
-	},
+	"bugs": "https://github.com/RobSchilderr/pitown/issues",
+	"description": "Pi package resources for Pi Town",
+	"files": [
+		"dist",
+		"pi",
+		"README.md"
+	],
 	"homepage": "https://github.com/RobSchilderr/pitown#readme",
-	"bugs": {
-		"url": "https://github.com/RobSchilderr/pitown/issues"
+	"imports": {
+		"#pitown-extension": "./pi/extensions/index.ts",
+		"#pitown-package-api": "./src/index.ts",
+		"#pitown-mayor-plan": "./pi/extensions/mayor-plan.ts",
+		"#pitown-town-tools": "./pi/extensions/town-tools.ts"
+	},
+	"keywords": [
+		"agents",
+		"night-shift",
+		"orchestration",
+		"pi",
+		"pi-package",
+		"pitown"
+	],
+	"license": "MIT",
+	"pi": {
+		"extensions": [
+			"./pi/extensions"
+		],
+		"prompts": [
+			"./pi/prompts"
+		]
 	},
 	"publishConfig": {
 		"access": "public"
 	},
-	"license": "MIT"
+	"repository": "RobSchilderr/pitown.git"
 }

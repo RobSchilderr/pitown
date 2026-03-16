@@ -15,6 +15,8 @@ export interface SpawnAgentOptions {
 	agentId: string
 	task: string | null
 	taskId?: string | null
+	appendedSystemPrompt?: string | null
+	extensionPath?: string | null
 }
 
 function parseSpawnFlags(argv: string[]): SpawnFlags {
@@ -24,6 +26,7 @@ function parseSpawnFlags(argv: string[]): SpawnFlags {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
+		if (arg === undefined) continue
 
 		if (arg.startsWith("--role=")) {
 			role = arg.slice("--role=".length)
@@ -74,7 +77,7 @@ export function spawnTownAgent(argv = process.argv.slice(2)) {
 	const flags = parseSpawnFlags(repo.rest)
 	const agentId = flags.agentId ?? `${flags.role}-${Date.now()}`
 	const task = flags.task
-	const { piResult, latestSession } = spawnAgent({
+	const { launch, latestSession } = spawnAgent({
 		repoRoot: repo.repoRoot,
 		artifactsDir: repo.artifactsDir,
 		role: flags.role,
@@ -87,7 +90,9 @@ export function spawnTownAgent(argv = process.argv.slice(2)) {
 	console.log(`- repo root: ${repo.repoRoot}`)
 	console.log(`- agent: ${agentId}`)
 	console.log(`- role: ${flags.role}`)
-	console.log(`- pi exit code: ${piResult.exitCode}`)
+	console.log(`- status: running`)
+	console.log(`- launch pid: ${launch.processId}`)
 	if (task) console.log(`- task: ${task}`)
 	if (latestSession.sessionPath) console.log(`- session: ${latestSession.sessionPath}`)
+	else if (latestSession.sessionDir) console.log(`- session dir: ${latestSession.sessionDir}`)
 }

@@ -6,15 +6,15 @@ import { createRepoSlug, getRepoIdentity } from "../../core/src/index.js"
 import { runTown } from "./run.js"
 import { showTownStatus } from "./status.js"
 
-const originalHome = process.env.HOME
-const originalPath = process.env.PATH
+const originalHome = process.env["HOME"]
+const originalPath = process.env["PATH"]
 
 afterEach(() => {
-	if (originalHome === undefined) delete process.env.HOME
-	else process.env.HOME = originalHome
+	if (originalHome === undefined) delete process.env["HOME"]
+	else process.env["HOME"] = originalHome
 
-	if (originalPath === undefined) delete process.env.PATH
-	else process.env.PATH = originalPath
+	if (originalPath === undefined) delete process.env["PATH"]
+	else process.env["PATH"] = originalPath
 })
 
 function createFakePi(binDir: string, options?: { stdout?: string; stderr?: string; exitCode?: number }) {
@@ -54,11 +54,11 @@ function captureLogs(fn: () => void): string[] {
 describe("runTown", () => {
 	it("uses CLI flags before user config and updates the latest local status pointer", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		createFakePi(binDir)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const configRepo = join(home, "config-repo")
 		const cliRepo = join(home, "cli-repo")
@@ -76,11 +76,17 @@ describe("runTown", () => {
 		)
 
 		const result = runTown(["--repo", cliRepo, "--goal", "cli goal"])
+		const latestIteration = result.iterations[result.iterations.length - 1]
+		expect(latestIteration).toBeTruthy()
+		if (!latestIteration) throw new Error("Expected latest iteration")
+		const latestController = latestIteration.controllerResult
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(cliRepo)), resolve(cliRepo))
-		expect(result.manifest.repoRoot).toBe(resolve(cliRepo))
-		expect(result.manifest.planPath).toBe(resolve(configPlan))
-		expect(result.manifest.goal).toBe("cli goal")
-		expect(result.runDir.startsWith(join(home, ".pi-town", "repos"))).toBe(true)
+		expect(result.totalIterations).toBe(1)
+		expect(result.stopReason).toBe("mayor-idle-no-work")
+		expect(latestController.manifest.repoRoot).toBe(resolve(cliRepo))
+		expect(latestController.manifest.planPath).toBe(resolve(configPlan))
+		expect(latestController.manifest.goal).toBe("cli goal")
+		expect(latestController.runDir.startsWith(join(home, ".pi-town", "repos"))).toBe(true)
 		expect(
 			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8")) as {
 				role: string
@@ -98,45 +104,48 @@ describe("runTown", () => {
 			runId: string
 		}
 		expect(latestPointer.repoSlug).toBe(repoSlug)
-		expect(latestPointer.runId).toBe(result.runId)
+		expect(latestPointer.runId).toBe(latestController.runId)
 
 		const output = captureLogs(() => showTownStatus())
 		expect(output.join("\n")).toContain("[pitown] status")
-		expect(output.join("\n")).toContain(`- latest run: ${result.runId}`)
+		expect(output.join("\n")).toContain(`- latest run: ${latestController.runId}`)
 		expect(output.join("\n")).toContain(`- repo root: ${resolve(cliRepo)}`)
 	})
 
 	it("surfaces Pi auth guidance when Pi is installed but not configured", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		createFakePi(binDir, { stderr: "No models available.\n", exitCode: 1 })
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		mkdirSync(repo, { recursive: true })
 
 		const output = captureLogs(() => runTown(["--repo", repo]))
-		expect(output.join("\n")).toContain("- pi exit code: 1")
+		expect(output.join("\n")).toContain("- latest pi exit code: 1")
 		expect(output.join("\n")).toContain("Pi appears to be installed but not authenticated or configured")
 		expect(output.join("\n")).toContain('pi -p "hello"')
 	})
 
 	it("runs without a configured plan path and recommends a private plans location", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
-		process.env.HOME = home
+		process.env["HOME"] = home
 
 		const binDir = join(home, "bin")
 		createFakePi(binDir)
-		process.env.PATH = `${binDir}:${originalPath ?? ""}`
+		process.env["PATH"] = `${binDir}:${originalPath ?? ""}`
 
 		const repo = join(home, "repo")
 		mkdirSync(repo, { recursive: true })
 
 		const result = runTown(["--repo", repo])
-		expect(result.manifest.planPath).toBeNull()
-		expect(result.summary.recommendedPlanDir).toBeTruthy()
-		expect(result.summary.message).toContain("Recommended private plans location")
+		const latestIteration = result.iterations[result.iterations.length - 1]
+		expect(latestIteration).toBeTruthy()
+		if (!latestIteration) throw new Error("Expected latest iteration")
+		expect(latestIteration.controllerResult.manifest.planPath).toBeNull()
+		expect(latestIteration.controllerResult.summary.recommendedPlanDir).toBeTruthy()
+		expect(latestIteration.controllerResult.summary.message).toContain("Recommended private plans location")
 	})
 })

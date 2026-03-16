@@ -1,16 +1,14 @@
 {
 	"name": "@schilderlabs/pitown-core",
-	"version": "0.2.1",
-	"description": "Core runtime primitives for Pi Town",
+	"version": "0.2.3",
 	"type": "module",
+	"types": "./dist/index.d.mts",
 	"exports": {
 		".": {
 			"import": "./dist/index.mjs",
 			"types": "./dist/index.d.mts"
 		}
 	},
-	"types": "./dist/index.d.mts",
-	"files": ["dist", "README.md"],
 	"engines": {
 		"node": ">=24"
 	},
@@ -26,17 +24,22 @@
 		"typescript": "5.9.2",
 		"vitest": "4.0.18"
 	},
-	"keywords": ["pitown", "orchestration", "runtime", "night-shift"],
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/RobSchilderr/pitown.git"
-	},
+	"bugs": "https://github.com/RobSchilderr/pitown/issues",
+	"description": "Core runtime primitives for Pi Town",
+	"files": [
+		"dist",
+		"README.md"
+	],
 	"homepage": "https://github.com/RobSchilderr/pitown#readme",
-	"bugs": {
-		"url": "https://github.com/RobSchilderr/pitown/issues"
-	},
+	"keywords": [
+		"night-shift",
+		"orchestration",
+		"pitown",
+		"runtime"
+	],
+	"license": "MIT",
 	"publishConfig": {
 		"access": "public"
 	},
-	"license": "MIT"
+	"repository": "RobSchilderr/pitown.git"
 }

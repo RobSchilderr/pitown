@@ -139,6 +139,8 @@ function requireTownContext(ctx: ExtensionContext): TownAgentContext {
 	return context
 }
 
+const notifiedCompletions = new Set<string>()
+
 export function registerTownTools(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (_event, ctx) => {
 		const context = resolveTownAgentContext(ctx.sessionManager.getSessionFile())
@@ -151,6 +153,50 @@ export function registerTownTools(pi: ExtensionAPI) {
 				display: false,
 			},
 		}
+	})
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const context = resolveTownAgentContext(ctx.sessionManager.getSessionFile())
+		if (!context || context.agentId !== "mayor") return
+		if (!ctx.hasUI) return
+
+		const agents = listAgentStates(context.artifactsDir)
+		const workers = agents.filter((a) => a.agentId !== "mayor")
+		if (workers.length === 0) {
+			ctx.ui.setStatus("pitown-workers", undefined)
+			ctx.ui.setWidget("pitown-workers", undefined)
+			return
+		}
+
+		for (const w of workers) {
+			if ((w.status === "idle" || w.status === "completed") && !notifiedCompletions.has(w.agentId)) {
+				notifiedCompletions.add(w.agentId)
+				ctx.ui.notify(`✓ ${w.agentId} finished: ${w.lastMessage ?? w.task ?? "done"}`, "success")
+			}
+			if ((w.status === "blocked" || w.status === "failed") && !notifiedCompletions.has(w.agentId)) {
+				notifiedCompletions.add(w.agentId)
+				ctx.ui.notify(`✗ ${w.agentId} blocked: ${w.lastMessage ?? "needs attention"}`, "warning")
+			}
+		}
+
+		const running = workers.filter((a) => a.status === "running" || a.status === "starting").length
+		const done = workers.filter((a) => a.status === "idle" || a.status === "completed").length
+		const blocked = workers.filter((a) => a.status === "blocked" || a.status === "failed").length
+
+		const parts: string[] = []
+		if (running > 0) parts.push(`${running} running`)
+		if (done > 0) parts.push(`${done} done`)
+		if (blocked > 0) parts.push(`${blocked} blocked`)
+
+		const label = `workers: ${parts.join(", ")}`
+		ctx.ui.setStatus("pitown-workers", ctx.ui.theme.fg("info", label))
+		ctx.ui.setWidget(
+			"pitown-workers",
+			workers.map((w) => {
+				const task = w.task ? (w.task.length > 50 ? w.task.slice(0, 49) + "…" : w.task) : "—"
+				return `${w.agentId}: ${w.status} — ${task}`
+			}),
+		)
 	})
 
 	pi.registerTool({
@@ -198,13 +244,14 @@ export function registerTownTools(pi: ExtensionAPI) {
 				content: [
 					{
 						type: "text",
-						text: `Delegated ${result.task.taskId} to ${result.agentId} (${input.role}). Exit code: ${result.piResult.exitCode}.`,
+						text: `Delegated ${result.task.taskId} to ${result.agentId} (${input.role}). Status: ${result.task.status}.`,
 					},
 				],
 				details: {
 					taskId: result.task.taskId,
 					agentId: result.agentId,
 					status: result.task.status,
+					processId: result.launch.processId,
 					sessionPath: result.latestSession.sessionPath,
 				},
 			}
@@ -297,7 +344,7 @@ export function registerTownTools(pi: ExtensionAPI) {
 				status: input.status,
 				lastMessage: input.lastMessage ?? null,
 				waitingOn: input.waitingOn ?? null,
-				blocked: input.blocked,
+				...(input.blocked === undefined ? {} : { blocked: input.blocked }),
 			})
 
 			return {
