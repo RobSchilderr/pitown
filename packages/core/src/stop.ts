@@ -136,6 +136,20 @@ function createStopMessage(options: { actorId?: string | null; reason?: string |
 	return "Stopped by operator"
 }
 
+function createStopMessageInput(options: StopManagedAgentsOptions): { actorId?: string | null; reason?: string | null } {
+	return {
+		...(options.actorId === undefined ? {} : { actorId: options.actorId }),
+		...(options.reason === undefined ? {} : { reason: options.reason }),
+	}
+}
+
+function createTerminateOptions(options: { force?: boolean; graceMs?: number }): { force?: boolean; graceMs?: number } {
+	return {
+		...(options.force === undefined ? {} : { force: options.force }),
+		...(options.graceMs === undefined ? {} : { graceMs: options.graceMs }),
+	}
+}
+
 export function listRepoLeases(repoId?: string | null): RepoLeaseRecord[] {
 	let entries: string[]
 	try {
@@ -174,7 +188,7 @@ export function stopRepoLeases(options: StopRepoLeasesOptions): StopRepoLeasesRe
 }
 
 export function stopManagedAgents(options: StopManagedAgentsOptions): StopManagedAgentsResult {
-	const reason = createStopMessage({ actorId: options.actorId, reason: options.reason })
+	const reason = createStopMessage(createStopMessageInput(options))
 	const excluded = new Set(options.excludeAgentIds ?? [])
 	const candidates = listAgentStates(options.artifactsDir).filter((agent) => {
 		if (excluded.has(agent.agentId)) return false
@@ -187,7 +201,7 @@ export function stopManagedAgents(options: StopManagedAgentsOptions): StopManage
 		const termination =
 			processId === null
 				? { signal: null, exited: true }
-				: terminateProcess(processId, { force: options.force, graceMs: options.graceMs })
+				: terminateProcess(processId, createTerminateOptions(options))
 
 		if (state.taskId) updateTaskRecordStatus(options.artifactsDir, state.taskId, "aborted")
 
