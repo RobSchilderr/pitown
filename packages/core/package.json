@@ -1,6 +1,6 @@
 {
 	"name": "@schilderlabs/pitown-core",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Core runtime primitives for Pi Town",
 	"type": "module",
 	"exports": {
@@ -29,11 +29,11 @@
 	"keywords": ["pitown", "orchestration", "runtime", "night-shift"],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/schilderlabs/pitown.git"
+		"url": "git+https://github.com/RobSchilderr/pitown.git"
 	},
-	"homepage": "https://github.com/schilderlabs/pitown#readme",
+	"homepage": "https://github.com/RobSchilderr/pitown#readme",
 	"bugs": {
-		"url": "https://github.com/schilderlabs/pitown/issues"
+		"url": "https://github.com/RobSchilderr/pitown/issues"
 	},
 	"publishConfig": {
 		"access": "public"
