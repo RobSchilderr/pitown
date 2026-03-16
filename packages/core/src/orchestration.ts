@@ -210,7 +210,7 @@ export function queueAgentMessage(input: { artifactsDir: string; agentId: string
 export function updateAgentStatus(input: {
 	artifactsDir: string
 	agentId: string
-	status: "queued" | "running" | "idle" | "blocked" | "completed" | "failed"
+	status: "queued" | "running" | "idle" | "blocked" | "completed" | "failed" | "stopped"
 	lastMessage?: string | null
 	waitingOn?: string | null
 	blocked?: boolean
@@ -224,6 +224,8 @@ export function updateAgentStatus(input: {
 				? "completed"
 				: input.status === "blocked" || input.status === "failed"
 					? "blocked"
+					: input.status === "stopped"
+						? "aborted"
 					: input.status === "running" || input.status === "queued"
 						? "running"
 						: null

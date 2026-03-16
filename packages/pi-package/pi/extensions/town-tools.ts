@@ -174,7 +174,7 @@ export function registerTownTools(pi: ExtensionAPI) {
 		for (const w of workers) {
 			if ((w.status === "idle" || w.status === "completed") && !notifiedCompletions.has(w.agentId)) {
 				notifiedCompletions.add(w.agentId)
-				ctx.ui.notify(`✓ ${w.agentId} finished: ${w.lastMessage ?? w.task ?? "done"}`, "success")
+				ctx.ui.notify(`✓ ${w.agentId} finished: ${w.lastMessage ?? w.task ?? "done"}`, "info")
 			}
 			if ((w.status === "blocked" || w.status === "failed" || w.status === "stopped") && !notifiedCompletions.has(w.agentId)) {
 				notifiedCompletions.add(w.agentId)
@@ -192,7 +192,7 @@ export function registerTownTools(pi: ExtensionAPI) {
 		if (blocked > 0) parts.push(`${blocked} blocked`)
 
 		const label = `workers: ${parts.join(", ")}`
-		ctx.ui.setStatus("pitown-workers", ctx.ui.theme.fg("info", label))
+		ctx.ui.setStatus("pitown-workers", label)
 		ctx.ui.setWidget(
 			"pitown-workers",
 			workers.map((w) => {
