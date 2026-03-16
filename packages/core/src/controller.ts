@@ -4,7 +4,7 @@ import { appendJsonl } from "./events.js"
 import { acquireRepoLease } from "./lease.js"
 import { computeMetrics } from "./metrics.js"
 import { createRepoSlug, getCurrentBranch, getRepoIdentity, getRepoRoot } from "./repo.js"
-import { runCommandSync } from "./shell.js"
+import { assertCommandAvailable, runCommandSync } from "./shell.js"
 import type { ControllerRunResult, PiInvocationRecord, RunManifest, RunOptions, RunSummary } from "./types.js"
 
 function createRunId(): string {
@@ -50,6 +50,31 @@ function createPiPrompt(input: {
 			: "If you need private plans, keep them in a user-owned location outside the repo.",
 		"Continue from the current scaffold state.",
 	].join("\n")
+}
+
+function assertPiRuntimeAvailable(piCommand: string) {
+	try {
+		assertCommandAvailable(piCommand)
+	} catch (error) {
+		if (piCommand === "pi") {
+			throw new Error(
+				[
+					"Pi Town requires the `pi` CLI to run `pitown run`.",
+					"Install Pi: npm install -g @mariozechner/pi-coding-agent",
+					"Then authenticate Pi and verify it works: pi -p \"hello\"",
+					`Details: ${(error as Error).message}`,
+				].join("\n"),
+			)
+		}
+
+		throw new Error(
+			[
+				`Pi Town could not execute the configured Pi command: ${piCommand}`,
+				"Make sure the command exists on PATH or points to an executable file.",
+				`Details: ${(error as Error).message}`,
+			].join("\n"),
+		)
+	}
 }
 
 function createManifest(input: {
@@ -127,6 +152,8 @@ export function runController(options: RunOptions): ControllerRunResult {
 	const stdoutPath = join(runDir, "stdout.txt")
 	const stderrPath = join(runDir, "stderr.txt")
 	const prompt = createPiPrompt({ repoRoot, planPath, goal, recommendedPlanDir })
+
+	assertPiRuntimeAvailable(piCommand)
 
 	mkdirSync(runDir, { recursive: true })
 	mkdirSync(latestDir, { recursive: true })

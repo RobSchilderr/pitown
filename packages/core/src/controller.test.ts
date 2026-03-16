@@ -6,6 +6,22 @@ import { runController } from "./controller.js"
 import { readJsonl } from "./events.js"
 
 describe("runController", () => {
+	it("fails with a clear message when the pi command is missing", () => {
+		const cwd = mkdtempSync(join(tmpdir(), "pi-town-cwd-"))
+		const artifactsDir = join(cwd, "state")
+		const missingCommand = join(cwd, "missing-pi")
+
+		expect(() =>
+			runController({
+				artifactsDir,
+				cwd,
+				goal: "continue from current scaffold state",
+				mode: "single-pi",
+				piCommand: missingCommand,
+			}),
+		).toThrowError(`Pi Town could not execute the configured Pi command: ${missingCommand}`)
+	})
+
 	it("performs one pi invocation and writes durable run artifacts", () => {
 		const cwd = mkdtempSync(join(tmpdir(), "pi-town-cwd-"))
 		const artifactsDir = join(cwd, "state")

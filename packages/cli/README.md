@@ -12,6 +12,14 @@ For the full project overview, roadmap, and architecture context, see the main r
 
 ```bash
 npm install -g @schilderlabs/pitown
+npm install -g @mariozechner/pi-coding-agent
+```
+
+`pitown run` requires Pi to be installed and authenticated.
+Verify Pi first:
+
+```bash
+pi -p "hello"
 ```
 
 ## Usage

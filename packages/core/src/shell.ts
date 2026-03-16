@@ -26,6 +26,17 @@ export function runCommandSync(
 	}
 }
 
+export function assertCommandAvailable(command: string) {
+	const result = spawnSync(command, ["--help"], {
+		encoding: "utf-8",
+		stdio: "ignore",
+	})
+
+	if (result.error instanceof Error) {
+		throw new Error(result.error.message)
+	}
+}
+
 export function assertSuccess(result: CommandResult, context: string) {
 	if (result.exitCode === 0) return
 	const details = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n")

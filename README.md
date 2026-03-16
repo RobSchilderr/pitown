@@ -50,6 +50,26 @@ Pi Town is:
 - **local filesystem-first**
 - **repo-agnostic** by default, using `--repo` and `--plan`
 
+## Prerequisites
+
+Pi Town currently uses the `pi` CLI as its execution engine.
+
+Before using `pitown run`, make sure Pi is installed and authenticated.
+
+### Install Pi
+
+```bash
+npm install -g @mariozechner/pi-coding-agent
+```
+
+### Verify Pi works
+
+Configure Pi for your preferred provider or account, then verify it works:
+
+```bash
+pi -p "hello"
+```
+
 ## Quick start
 
 ### Run from source today
