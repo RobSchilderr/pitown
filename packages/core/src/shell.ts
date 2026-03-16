@@ -37,6 +37,24 @@ export function assertCommandAvailable(command: string) {
 	}
 }
 
+export function runCommandInteractive(
+	command: string,
+	args: string[],
+	options?: { cwd?: string; env?: NodeJS.ProcessEnv },
+): number {
+	const result = spawnSync(command, args, {
+		cwd: options?.cwd,
+		env: options?.env,
+		stdio: "inherit",
+	})
+
+	if (result.error instanceof Error) {
+		throw new Error(result.error.message)
+	}
+
+	return result.status ?? 1
+}
+
 export function assertSuccess(result: CommandResult, context: string) {
 	if (result.exitCode === 0) return
 	const details = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n")

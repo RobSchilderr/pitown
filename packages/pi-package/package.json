@@ -3,6 +3,12 @@
 	"version": "0.1.0",
 	"description": "Pi package resources for Pi Town",
 	"type": "module",
+	"imports": {
+		"#pitown-extension": "./pi/extensions/index.ts",
+		"#pitown-package-api": "./src/index.ts",
+		"#pitown-mayor-plan": "./pi/extensions/mayor-plan.ts",
+		"#pitown-town-tools": "./pi/extensions/town-tools.ts"
+	},
 	"exports": {
 		".": {
 			"import": "./dist/index.mjs",
@@ -24,6 +30,10 @@
 		"lint": "eslint .",
 		"test": "vitest run --passWithNoTests",
 		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@mariozechner/pi-ai": "0.58.3",
+		"@schilderlabs/pitown-core": "workspace:*"
 	},
 	"peerDependencies": {
 		"@mariozechner/pi-coding-agent": "*"

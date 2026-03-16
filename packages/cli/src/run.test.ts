@@ -76,12 +76,23 @@ describe("runTown", () => {
 		)
 
 		const result = runTown(["--repo", cliRepo, "--goal", "cli goal"])
+		const repoSlug = createRepoSlug(getRepoIdentity(resolve(cliRepo)), resolve(cliRepo))
 		expect(result.manifest.repoRoot).toBe(resolve(cliRepo))
 		expect(result.manifest.planPath).toBe(resolve(configPlan))
 		expect(result.manifest.goal).toBe("cli goal")
 		expect(result.runDir.startsWith(join(home, ".pi-town", "repos"))).toBe(true)
+		expect(
+			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "state.json"), "utf-8")) as {
+				role: string
+				status: string
+			},
+		).toEqual(
+			expect.objectContaining({
+				role: "leader",
+				status: "idle",
+			}),
+		)
 
-		const repoSlug = createRepoSlug(getRepoIdentity(resolve(cliRepo)), resolve(cliRepo))
 		const latestPointer = JSON.parse(readFileSync(join(home, ".pi-town", "latest-run.json"), "utf-8")) as {
 			repoSlug: string
 			runId: string

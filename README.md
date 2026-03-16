@@ -59,7 +59,24 @@ pnpm build
 pnpm pitown -- --help
 ```
 
-Run Pi Town against any local repository:
+Start with the mayor from inside a repo:
+
+```bash
+cd /path/to/repo
+pitown
+pitown mayor
+```
+
+Or send the mayor a one-off planning message:
+
+```bash
+cd /path/to/repo
+pitown mayor "plan the next milestones for this repository"
+```
+
+If you are already inside a repo, you usually do not need `--repo`. Pi Town will use the current working repo when possible.
+
+Run Pi Town explicitly against any local repository:
 
 ```bash
 pitown run \
@@ -91,6 +108,27 @@ npm install -g @schilderlabs/pitown
 Homebrew support is planned later.
 
 ## Core concepts
+
+### Mayor
+The main human-facing Pi agent is the **mayor**.
+
+- `mayor` is the user-facing name
+- internally it is implemented as the `leader` agent role
+- the mayor owns planning, delegation, and status summaries
+- workers, reviewers, and other roles are coordinated underneath the mayor
+
+The intended default workflow is:
+
+1. `cd` into a repo
+2. run `pitown` or `pitown mayor`
+3. use `/plan` inside the mayor session when you want read-only planning first
+4. let the mayor delegate to other Pi Town agents when needed
+
+Inside the mayor session:
+
+- `/plan` toggles read-only planning mode
+- `/todos` shows the current captured plan
+- turning `/plan` off returns the mayor to normal execution and delegation mode
 
 ### Pi Town home
 Pi Town stores local runtime state in a user-owned directory:
@@ -141,12 +179,12 @@ Including files such as:
 
 ```text
 You
- └─ pitown
-     ├─ reads config from ~/.pi-town/config.json
-     ├─ resolves --repo / --plan / --goal
-     ├─ creates a local run directory under ~/.pi-town/repos/<repo-slug>/
-     ├─ invokes Pi once against the target repo
-     └─ persists run artifacts for later inspection
+ └─ pitown mayor
+     ├─ resolves the current repo or --repo override
+     ├─ opens the persisted mayor Pi session for that repo
+     ├─ gives the mayor Pi Town orchestration tools
+     ├─ lets the mayor delegate to workers/reviewers
+     └─ persists board, mailbox, session, and task state under ~/.pi-town/repos/<repo-slug>/
 ```
 
 ## Local-first runtime layout
@@ -159,6 +197,20 @@ You
     <repo-slug>/
   repos/
     <repo-slug>/
+      agents/
+        leader/
+          state.json
+          session.json
+          inbox.jsonl
+          outbox.jsonl
+          sessions/
+        worker-001/
+          state.json
+          session.json
+          inbox.jsonl
+          outbox.jsonl
+          sessions/
+      tasks/
       latest/
       latest-run.json
       runs/
@@ -198,16 +250,49 @@ skills/
   public/            public repo-owned shared skills
 ```
 
+## Command guide
+
+```bash
+pitown
+pitown mayor
+pitown mayor "plan the next milestones"
+/plan
+/todos
+pitown msg mayor "focus on the auth regression"
+pitown board
+pitown peek mayor
+pitown delegate --task "fix callback regression"
+pitown attach mayor
+pitown continue mayor "follow up on the open blockers"
+```
+
+The intended conversational loop is:
+
+1. start `pitown`
+2. talk to the mayor about the repo
+3. enter `/plan` if you want the mayor to stay in read-only planning mode
+4. review the numbered plan with `/todos`
+5. leave `/plan` when you want the mayor to execute and delegate work
+
+What these do:
+
+- `pitown mayor` opens the main planning/coordinator session
+- `pitown msg mayor "..."` sends one non-interactive message and runs one turn
+- `pitown board` shows what the town is doing
+- `pitown peek mayor` inspects the mayor state and mailbox
+- `pitown attach mayor` reopens the interactive mayor Pi session
+- `pitown continue mayor "..."` resumes the mayor session with a new message
+
 ## Current status
 
 Pi Town is in the early local-first orchestration phase.
 It should currently be understood as an experimental scaffold, not yet a mature production workflow system.
 
 Current focus:
-- external runner model
+- mayor-first orchestration
+- persistent Pi sessions per agent
+- durable board, mailbox, and task artifacts
 - explicit repo and plan targeting
-- first real Pi invocation
-- durable local artifacts
 - public-safe repo structure
 
 Planned later:

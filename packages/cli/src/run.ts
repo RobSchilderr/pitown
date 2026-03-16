@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { readPiTownMayorPrompt, resolvePiTownExtensionPath } from "@schilderlabs/pitown-package"
 import {
 	createRepoSlug,
 	getRepoIdentity,
@@ -74,6 +75,8 @@ export function runTown(argv = process.argv.slice(2)): ControllerRunResult {
 		mode: "single-pi",
 		planPath: config.plan,
 		recommendedPlanDir,
+		appendedSystemPrompt: readPiTownMayorPrompt(),
+		extensionPath: resolvePiTownExtensionPath(),
 	})
 
 	const latestPointer = createLatestRunPointer(result, repoSlug, repoRoot)

@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
+import { registerMayorPlanMode } from "#pitown-mayor-plan"
+import { registerTownTools } from "#pitown-town-tools"
 
 const extensionDir = dirname(fileURLToPath(import.meta.url))
 const agentsDir = join(extensionDir, "..", "agents")
@@ -36,6 +38,9 @@ function listBundledAgents(): Array<{ name: string; description: string }> {
 }
 
 export default function piTownPackage(pi: ExtensionAPI) {
+	registerTownTools(pi)
+	registerMayorPlanMode(pi)
+
 	pi.registerCommand("town-status", {
 		description: "Show Pi Town package status",
 		handler: async (_args, ctx) => {

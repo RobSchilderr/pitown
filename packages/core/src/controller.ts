@@ -1,5 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import {
+	createAgentSessionRecord,
+	createAgentState,
+	getAgentSessionsDir,
+	getLatestAgentSession,
+	readAgentState,
+	writeAgentState,
+} from "./agents.js"
 import { appendJsonl } from "./events.js"
 import { acquireRepoLease } from "./lease.js"
 import { computeMetrics } from "./metrics.js"
@@ -10,6 +18,25 @@ import type { ControllerRunResult, PiInvocationRecord, RunManifest, RunOptions, 
 
 function createRunId(): string {
 	return `run-${new Date().toISOString().replace(/[:.]/g, "-")}`
+}
+
+function createPiInvocationArgs(input: {
+	sessionDir?: string | null
+	sessionPath?: string | null
+	prompt: string
+	appendedSystemPrompt?: string | null
+	extensionPath?: string | null
+}) {
+	const args: string[] = []
+
+	if (input.extensionPath) args.push("--extension", input.extensionPath)
+	if (input.appendedSystemPrompt) args.push("--append-system-prompt", input.appendedSystemPrompt)
+	if (input.sessionPath) args.push("--session", input.sessionPath)
+	else if (input.sessionDir) args.push("--session-dir", input.sessionDir)
+	else throw new Error("Pi invocation requires a session path or session directory")
+	args.push("-p", input.prompt)
+
+	return args
 }
 
 function writeJson(path: string, value: unknown) {
@@ -30,6 +57,9 @@ function createPiPrompt(input: {
 
 	if (input.planPath) {
 		return [
+			"You are the Pi Town leader agent for this repository.",
+			"Coordinate the next bounded unit of work, keep updates concise, and leave a durable artifact trail.",
+			"",
 			"Read the private plans in:",
 			`- ${input.planPath}`,
 			"",
@@ -43,6 +73,9 @@ function createPiPrompt(input: {
 	}
 
 	return [
+		"You are the Pi Town leader agent for this repository.",
+		"Coordinate the next bounded unit of work, keep updates concise, and leave a durable artifact trail.",
+		"",
 		`Work in the repository at: ${input.repoRoot}`,
 		`Goal: ${goal}`,
 		"No private plan path is configured for this run.",
@@ -159,6 +192,26 @@ export function runController(options: RunOptions): ControllerRunResult {
 	const stdoutPath = join(runDir, "stdout.txt")
 	const stderrPath = join(runDir, "stderr.txt")
 	const prompt = createPiPrompt({ repoRoot, planPath, goal, recommendedPlanDir })
+	const existingLeaderState = readAgentState(artifactsDir, "leader")
+	const existingLeaderSession =
+		existingLeaderState?.session.sessionPath || existingLeaderState?.session.sessionDir
+			? existingLeaderState.session
+			: getLatestAgentSession(artifactsDir, "leader")
+	const leaderSessionDir = existingLeaderSession.sessionDir ?? getAgentSessionsDir(artifactsDir, "leader")
+	const leaderState = createAgentState({
+		agentId: "leader",
+		role: "leader",
+		status: "starting",
+		task: goal,
+		branch,
+		lastMessage: goal ? `Starting leader run for goal: ${goal}` : "Starting leader run",
+		runId,
+		session: createAgentSessionRecord({
+			sessionDir: leaderSessionDir,
+			sessionId: existingLeaderSession.sessionId,
+			sessionPath: existingLeaderSession.sessionPath,
+		}),
+	})
 
 	assertPiRuntimeAvailable(piCommand)
 
@@ -171,6 +224,7 @@ export function runController(options: RunOptions): ControllerRunResult {
 		status: "starting",
 		updatedAt: new Date().toISOString(),
 	})
+	writeAgentState(artifactsDir, leaderState)
 
 	const lease = acquireRepoLease(runId, repoId, branch)
 
@@ -205,11 +259,28 @@ export function runController(options: RunOptions): ControllerRunResult {
 			createdAt: piStartedAt,
 		})
 
-		const piResult = runCommandSync(piCommand, ["--no-session", "-p", prompt], {
+		writeAgentState(
+			artifactsDir,
+			createAgentState({
+				...leaderState,
+				status: "running",
+				lastMessage: goal ? `Leader working on: ${goal}` : "Leader working",
+			}),
+		)
+
+		const piArgs = createPiInvocationArgs({
+			sessionDir: leaderState.session.sessionPath === null ? leaderSessionDir : null,
+			sessionPath: leaderState.session.sessionPath,
+			prompt,
+			appendedSystemPrompt: options.appendedSystemPrompt,
+			extensionPath: options.extensionPath,
+		})
+		const piResult = runCommandSync(piCommand, piArgs, {
 			cwd: repoRoot,
 			env: process.env,
 		})
 		const piEndedAt = new Date().toISOString()
+		const latestLeaderSession = getLatestAgentSession(artifactsDir, "leader")
 
 		writeText(stdoutPath, piResult.stdout)
 		writeText(stderrPath, piResult.stderr)
@@ -220,6 +291,9 @@ export function runController(options: RunOptions): ControllerRunResult {
 			repoRoot,
 			planPath,
 			goal,
+			sessionDir: latestLeaderSession.sessionDir,
+			sessionId: latestLeaderSession.sessionId,
+			sessionPath: latestLeaderSession.sessionPath,
 			startedAt: piStartedAt,
 			endedAt: piEndedAt,
 			exitCode: piResult.exitCode,
@@ -272,6 +346,24 @@ export function runController(options: RunOptions): ControllerRunResult {
 		writeJson(join(latestDir, "manifest.json"), finalManifest)
 		writeJson(join(latestDir, "metrics.json"), metrics)
 		writeJson(join(latestDir, "run-summary.json"), summary)
+		writeAgentState(
+			artifactsDir,
+			createAgentState({
+				...leaderState,
+					status: piInvocation.exitCode === 0 ? "idle" : "blocked",
+					lastMessage:
+						piInvocation.exitCode === 0
+							? "Leader run completed and is ready for the next instruction"
+							: `Leader run stopped with exit code ${piInvocation.exitCode}`,
+					blocked: piInvocation.exitCode !== 0,
+					waitingOn: piInvocation.exitCode === 0 ? null : "human-or-follow-up-run",
+					session: createAgentSessionRecord({
+						sessionDir: latestLeaderSession.sessionDir,
+						sessionId: latestLeaderSession.sessionId,
+						sessionPath: latestLeaderSession.sessionPath,
+					}),
+				}),
+			)
 
 		appendJsonl(join(runDir, "events.jsonl"), {
 			type: "run_finished",

@@ -21,6 +21,10 @@ export function getRepoArtifactsDir(repoSlug: string): string {
 	return join(getReposRootDir(), repoSlug)
 }
 
+export function getRepoAgentsDir(repoSlug: string): string {
+	return join(getRepoArtifactsDir(repoSlug), "agents")
+}
+
 export function getLatestRunPointerPath(): string {
 	return join(getTownHomeDir(), "latest-run.json")
 }

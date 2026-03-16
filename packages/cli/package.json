@@ -28,7 +28,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@schilderlabs/pitown-core": "workspace:*"
+		"@schilderlabs/pitown-core": "workspace:*",
+		"@schilderlabs/pitown-package": "workspace:*"
 	},
 	"devDependencies": {
 		"eslint": "9.39.3",

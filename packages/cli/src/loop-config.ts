@@ -4,18 +4,8 @@ import { homedir } from "node:os"
 import { getUserConfigPath } from "./paths.js"
 
 const DEFAULT_GOAL = "continue from current scaffold state"
-
-export interface CliFlags {
-	repo?: string
-	plan?: string
-	goal?: string
-	help: boolean
-}
-
-export interface OptionalRepoFlagResult {
-	repo?: string
-	rest: string[]
-}
+const DEFAULT_MAX_ITERATIONS = 10
+const DEFAULT_MAX_TIME_MINUTES = 60
 
 interface UserConfig {
 	repo?: string
@@ -23,11 +13,22 @@ interface UserConfig {
 	goal?: string
 }
 
-export interface ResolvedRunConfig {
+export interface ResolvedLoopConfig {
 	repo: string
 	plan: string | null
 	goal: string
-	configPath: string
+	maxIterations: number
+	maxTimeMinutes: number
+	stopOnPiFailure: boolean
+}
+
+interface LoopCliFlags {
+	repo?: string
+	plan?: string
+	goal?: string
+	maxIterations?: number
+	maxTime?: number
+	noStopOnFailure: boolean
 }
 
 function expandHome(value: string): string {
@@ -42,22 +43,16 @@ function resolvePathValue(value: string | undefined, baseDir: string): string | 
 	return isAbsolute(expanded) ? resolve(expanded) : resolve(baseDir, expanded)
 }
 
-export function parseCliFlags(argv: string[]): CliFlags {
-	const flags: CliFlags = { help: false }
+function parseLoopCliFlags(argv: string[]): LoopCliFlags {
+	const flags: LoopCliFlags = { noStopOnFailure: false }
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
-
-		if (arg === "--help" || arg === "-h") {
-			flags.help = true
-			continue
-		}
 
 		if (arg.startsWith("--repo=")) {
 			flags.repo = arg.slice("--repo=".length)
 			continue
 		}
-
 		if (arg === "--repo") {
 			const value = argv[index + 1]
 			if (!value) throw new Error("Missing value for --repo")
@@ -70,7 +65,6 @@ export function parseCliFlags(argv: string[]): CliFlags {
 			flags.plan = arg.slice("--plan=".length)
 			continue
 		}
-
 		if (arg === "--plan") {
 			const value = argv[index + 1]
 			if (!value) throw new Error("Missing value for --plan")
@@ -83,12 +77,40 @@ export function parseCliFlags(argv: string[]): CliFlags {
 			flags.goal = arg.slice("--goal=".length)
 			continue
 		}
-
 		if (arg === "--goal") {
 			const value = argv[index + 1]
 			if (!value) throw new Error("Missing value for --goal")
 			flags.goal = value
 			index += 1
+			continue
+		}
+
+		if (arg.startsWith("--max-iterations=")) {
+			flags.maxIterations = Number.parseInt(arg.slice("--max-iterations=".length), 10)
+			continue
+		}
+		if (arg === "--max-iterations") {
+			const value = argv[index + 1]
+			if (!value) throw new Error("Missing value for --max-iterations")
+			flags.maxIterations = Number.parseInt(value, 10)
+			index += 1
+			continue
+		}
+
+		if (arg.startsWith("--max-time=")) {
+			flags.maxTime = Number.parseInt(arg.slice("--max-time=".length), 10)
+			continue
+		}
+		if (arg === "--max-time") {
+			const value = argv[index + 1]
+			if (!value) throw new Error("Missing value for --max-time")
+			flags.maxTime = Number.parseInt(value, 10)
+			index += 1
+			continue
+		}
+
+		if (arg === "--no-stop-on-failure") {
+			flags.noStopOnFailure = true
 			continue
 		}
 
@@ -98,40 +120,14 @@ export function parseCliFlags(argv: string[]): CliFlags {
 	return flags
 }
 
-export function parseOptionalRepoFlag(argv: string[]): OptionalRepoFlagResult {
-	const rest: string[] = []
-	let repo: string | undefined
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const arg = argv[index]
-
-		if (arg.startsWith("--repo=")) {
-			repo = arg.slice("--repo=".length)
-			continue
-		}
-
-		if (arg === "--repo") {
-			const value = argv[index + 1]
-			if (!value) throw new Error("Missing value for --repo")
-			repo = value
-			index += 1
-			continue
-		}
-
-		rest.push(arg)
-	}
-
-	return { repo, rest }
-}
-
-export function loadUserConfig(): UserConfig {
+function loadUserConfig(): UserConfig {
 	const configPath = getUserConfigPath()
 	if (!existsSync(configPath)) return {}
 	return JSON.parse(readFileSync(configPath, "utf-8")) as UserConfig
 }
 
-export function resolveRunConfig(argv: string[]): ResolvedRunConfig {
-	const flags = parseCliFlags(argv)
+export function resolveLoopConfig(argv: string[]): ResolvedLoopConfig {
+	const flags = parseLoopCliFlags(argv)
 	const configPath = getUserConfigPath()
 	const userConfig = loadUserConfig()
 	const configDir = dirname(configPath)
@@ -147,6 +143,8 @@ export function resolveRunConfig(argv: string[]): ResolvedRunConfig {
 		repo,
 		plan,
 		goal,
-		configPath,
+		maxIterations: flags.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+		maxTimeMinutes: flags.maxTime ?? DEFAULT_MAX_TIME_MINUTES,
+		stopOnPiFailure: !flags.noStopOnFailure,
 	}
 }

@@ -27,9 +27,27 @@ pi -p "hello"
 
 ```bash
 pitown --help
+pitown
+pitown mayor
+pitown mayor "plan the next milestones"
 pitown run --repo /path/to/repo --plan /path/to/private/plans --goal "continue from current scaffold state"
 pitown status
 ```
+
+If you are already inside a repo, `pitown` and `pitown mayor` use the current working repo by default.
+
+The main workflow is:
+
+1. `cd` into a repo
+2. run `pitown` or `pitown mayor`
+3. use `/plan` inside the mayor session when you want a read-only plan first
+4. use `pitown board`, `pitown peek mayor`, or `pitown msg mayor "..."` as needed
+
+Inside the mayor session:
+
+- `/plan` toggles read-only planning mode
+- `/todos` shows the captured numbered plan
+- leaving `/plan` returns the mayor to normal execution and delegation mode
 
 ## Runtime storage
 

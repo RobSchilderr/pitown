@@ -8,6 +8,7 @@ on:
     tags:
       - "pitown-v*"
       - "pitown-core-v*"
+      - "pitown-package-v*"
 
 jobs:
   publish:
@@ -15,6 +16,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,6 +50,11 @@ jobs:
               PACKAGE_DIR="packages/cli"
               VERSION="${TAG#pitown-v}"
               ;;
+            pitown-package-v*)
+              PACKAGE_NAME="@schilderlabs/pitown-package"
+              PACKAGE_DIR="packages/pi-package"
+              VERSION="${TAG#pitown-package-v}"
+              ;;
             pitown-core-v*)
               PACKAGE_NAME="@schilderlabs/pitown-core"
               PACKAGE_DIR="packages/core"
@@ -70,34 +77,67 @@ jobs:
           echo "package_dir=$PACKAGE_DIR" >> "$GITHUB_OUTPUT"
           echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish package to npm
+      - name: Setup Node.js for npm
         uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
           scope: "@schilderlabs"
 
-      - name: npm publish
+      - name: Check npm registry for existing version
+        id: npm_registry
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm --filter ${{ steps.meta.outputs.package_name }} publish --access public --no-git-checks
+        run: |
+          if npm view "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }} already exists on npm"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Publish package to GitHub Packages
+      - name: npm publish
+        if: steps.npm_registry.outputs.already_published != 'true'
+        working-directory: ${{ steps.meta.outputs.package_dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks --provenance
+
+      - name: Setup Node.js for GitHub Packages
         uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://npm.pkg.github.com
           scope: "@schilderlabs"
 
-      - name: GitHub Packages publish
+      - name: Check GitHub Packages for existing version
+        id: github_packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm --filter ${{ steps.meta.outputs.package_name }} publish --no-git-checks --registry https://npm.pkg.github.com
+        run: |
+          if npm view "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }}" version --registry https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }} already exists on GitHub Packages"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GitHub Packages publish
+        if: steps.github_packages.outputs.already_published != 'true'
+        working-directory: ${{ steps.meta.outputs.package_dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm publish --no-git-checks --registry https://npm.pkg.github.com
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "${{ steps.meta.outputs.package_name }} v${{ steps.meta.outputs.package_version }}" \
-            --generate-notes
+          if gh release view "$GITHUB_REF_NAME" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "GitHub release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "${{ github.repository }}" \
+              --title "${{ steps.meta.outputs.package_name }} v${{ steps.meta.outputs.package_version }}" \
+              --generate-notes
+          fi

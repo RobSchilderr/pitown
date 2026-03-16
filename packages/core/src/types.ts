@@ -17,6 +17,53 @@ export type FixType =
 
 export type RunMode = "single-pi"
 
+export type AgentStatus = "queued" | "starting" | "running" | "idle" | "blocked" | "completed" | "failed"
+
+export type AgentMailbox = "inbox" | "outbox"
+export type TaskStatus = "queued" | "running" | "blocked" | "completed"
+
+export interface AgentSessionRecord {
+	runtime: "pi"
+	persisted: boolean
+	sessionDir: string | null
+	sessionId: string | null
+	sessionPath: string | null
+	lastAttachedAt: string | null
+}
+
+export interface AgentStateSnapshot {
+	agentId: string
+	role: string
+	status: AgentStatus
+	taskId: string | null
+	task: string | null
+	branch: string | null
+	updatedAt: string
+	lastMessage: string | null
+	waitingOn: string | null
+	blocked: boolean
+	runId: string | null
+	session: AgentSessionRecord
+}
+
+export interface AgentMessageRecord {
+	box: AgentMailbox
+	from: string
+	body: string
+	createdAt: string
+}
+
+export interface TaskRecord {
+	taskId: string
+	title: string
+	status: TaskStatus
+	role: string
+	assignedAgentId: string
+	createdBy: string
+	createdAt: string
+	updatedAt: string
+}
+
 export interface InterruptRecord {
 	id: string
 	runId: string
@@ -66,6 +113,8 @@ export interface RunOptions {
 	mode?: RunMode
 	planPath?: string | null
 	recommendedPlanDir?: string | null
+	appendedSystemPrompt?: string | null
+	extensionPath?: string | null
 	piCommand?: string
 }
 
@@ -96,6 +145,9 @@ export interface PiInvocationRecord {
 	repoRoot: string
 	planPath: string | null
 	goal: string | null
+	sessionDir: string | null
+	sessionId: string | null
+	sessionPath: string | null
 	startedAt: string
 	endedAt: string
 	exitCode: number
@@ -122,4 +174,53 @@ export interface ControllerRunResult {
 	metrics: MetricsSnapshot
 	summary: RunSummary
 	piInvocation: PiInvocationRecord
+}
+
+// --- Loop types ---
+
+export type LoopStopReason =
+	| "all-tasks-completed"
+	| "all-remaining-tasks-blocked"
+	| "leader-blocked"
+	| "max-iterations-reached"
+	| "max-wall-time-reached"
+	| "pi-exit-nonzero"
+	| "high-interrupt-rate"
+
+export interface LoopOptions {
+	runOptions: RunOptions
+	maxIterations?: number
+	maxWallTimeMs?: number
+	stopOnPiFailure?: boolean
+	interruptRateThreshold?: number | null
+	onIterationComplete?: (iteration: LoopIterationResult) => void
+}
+
+export interface BoardSnapshot {
+	tasks: Array<{ taskId: string; status: TaskStatus }>
+	agents: Array<{ agentId: string; status: AgentStatus; blocked: boolean }>
+	allTasksCompleted: boolean
+	allRemainingTasksBlocked: boolean
+	leaderBlocked: boolean
+	hasQueuedOrRunningWork: boolean
+}
+
+export interface LoopIterationResult {
+	iteration: number
+	controllerResult: ControllerRunResult
+	boardSnapshot: BoardSnapshot
+	metrics: MetricsSnapshot
+	elapsedMs: number
+	continueReason: string | null
+	stopReason: LoopStopReason | null
+}
+
+export interface LoopRunResult {
+	loopId: string
+	iterations: LoopIterationResult[]
+	stopReason: LoopStopReason
+	totalIterations: number
+	totalElapsedMs: number
+	finalBoardSnapshot: BoardSnapshot
+	aggregateMetrics: MetricsSnapshot
 }
