@@ -4,6 +4,11 @@ import { resolve } from "node:path"
 
 const rootDir = resolve(".")
 const cliPackagePath = resolve("packages/cli/package.json")
+const releaseTags = [
+	{ tagPrefix: "pitown-v", packageName: "@schilderlabs/pitown" },
+	{ tagPrefix: "pitown-core-v", packageName: "@schilderlabs/pitown-core" },
+	{ tagPrefix: "pitown-package-v", packageName: "@schilderlabs/pitown-package" },
+]
 
 function run(command, args, options = {}) {
 	const rendered = [command, ...args].join(" ")
@@ -44,6 +49,11 @@ function printUsage() {
 			"  pnpm release patch --link",
 			"  pnpm release minor",
 			"  pnpm release 0.3.0 --github",
+			"",
+			"With --github, the script commits once and pushes these tags:",
+			"  pitown-v<version>",
+			"  pitown-core-v<version>",
+			"  pitown-package-v<version>",
 		].join("\n"),
 	)
 }
@@ -88,15 +98,24 @@ function main() {
 	console.log(`Prepared Pi Town release v${version}`)
 
 	if (!github) {
-		console.log("GitHub release skipped. Re-run with --github to commit, tag, push, and create a GitHub release.")
+		console.log("GitHub publish skipped. Re-run with --github to commit, tag, and push the package release tags.")
 		return
 	}
 
+	const tags = releaseTags.map(({ tagPrefix }) => `${tagPrefix}${version}`)
+
 	run("git", ["add", "-A"])
 	run("git", ["commit", "-m", `release: v${version}`])
-	run("git", ["tag", `v${version}`])
-	run("git", ["push", "origin", "HEAD", "--follow-tags"])
-	run("gh", ["release", "create", `v${version}`, "--generate-notes"])
+	for (const tag of tags) {
+		run("git", ["tag", tag])
+	}
+	run("git", ["push", "origin", "HEAD", ...tags])
+	console.log(
+		[
+			"Triggered GitHub release workflow for:",
+			...releaseTags.map(({ packageName }, index) => `- ${packageName}: ${tags[index]}`),
+		].join("\n"),
+	)
 }
 
 try {
