@@ -103,32 +103,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm publish --access public --no-git-checks --provenance
 
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          registry-url: https://npm.pkg.github.com
-          scope: "@schilderlabs"
-
-      - name: Check GitHub Packages for existing version
-        id: github_packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if npm view "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }}" version --registry https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-            echo "${{ steps.meta.outputs.package_name }}@${{ steps.meta.outputs.package_version }} already exists on GitHub Packages"
-          else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: GitHub Packages publish
-        if: steps.github_packages.outputs.already_published != 'true'
-        working-directory: ${{ steps.meta.outputs.package_dir }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm publish --no-git-checks --registry https://npm.pkg.github.com
-
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
