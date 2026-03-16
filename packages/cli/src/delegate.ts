@@ -14,7 +14,7 @@ interface DelegateFlags {
 }
 
 function parseDelegateFlags(argv: string[]): DelegateFlags {
-	let from = "leader"
+	let from = "mayor"
 	let role = "worker"
 	let agentId: string | null = null
 	let task: string | null = null

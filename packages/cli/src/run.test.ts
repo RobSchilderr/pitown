@@ -82,13 +82,13 @@ describe("runTown", () => {
 		expect(result.manifest.goal).toBe("cli goal")
 		expect(result.runDir.startsWith(join(home, ".pi-town", "repos"))).toBe(true)
 		expect(
-			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "state.json"), "utf-8")) as {
+			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8")) as {
 				role: string
 				status: string
 			},
 		).toEqual(
 			expect.objectContaining({
-				role: "leader",
+				role: "mayor",
 				status: "idle",
 			}),
 		)

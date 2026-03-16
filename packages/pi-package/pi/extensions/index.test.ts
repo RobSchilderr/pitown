@@ -21,24 +21,24 @@ function createRepoArtifacts() {
 	const repoRoot = mkdtempSync(join(tmpdir(), "pitown-repo-"))
 	const artifactsDir = join(mkdtempSync(join(tmpdir(), "pitown-home-")), "repos", "demo-repo")
 
-	const leaderSessionDir = join(artifactsDir, "agents", "leader", "sessions")
+	const mayorSessionDir = join(artifactsDir, "agents", "mayor", "sessions")
 	const workerSessionDir = join(artifactsDir, "agents", "worker-001", "sessions")
 	const reviewerSessionDir = join(artifactsDir, "agents", "reviewer-001", "sessions")
-	const leaderSessionFile = join(leaderSessionDir, "session_leader.jsonl")
+	const mayorSessionFile = join(mayorSessionDir, "session_mayor.jsonl")
 	const workerSessionFile = join(workerSessionDir, "session_worker.jsonl")
 
 	writeAgentState(
 		artifactsDir,
 		createAgentState({
-			agentId: "leader",
-			role: "leader",
+			agentId: "mayor",
+			role: "mayor",
 			status: "running",
 			task: "coordinate town work",
 			lastMessage: "checking board",
 			session: createAgentSessionRecord({
-				sessionDir: leaderSessionDir,
-				sessionPath: leaderSessionFile,
-				sessionId: "leader",
+				sessionDir: mayorSessionDir,
+				sessionPath: mayorSessionFile,
+				sessionId: "mayor",
 			}),
 		}),
 	)
@@ -79,11 +79,11 @@ function createRepoArtifacts() {
 			status: "queued",
 			role: "worker",
 			assignedAgentId: "worker-001",
-			createdBy: "leader",
+			createdBy: "mayor",
 		}),
 	)
 
-	return { repoRoot, artifactsDir, leaderSessionFile, workerSessionFile }
+	return { repoRoot, artifactsDir, mayorSessionFile, workerSessionFile }
 }
 
 function setup() {
@@ -161,13 +161,13 @@ function createToolContext(repoRoot: string, sessionFile: string) {
 }
 
 describe("pi town extension", () => {
-	it("injects hidden town context for managed leader sessions", async () => {
-		const { repoRoot, leaderSessionFile } = createRepoArtifacts()
+	it("injects hidden town context for managed mayor sessions", async () => {
+		const { repoRoot, mayorSessionFile } = createRepoArtifacts()
 		const { handlers } = setup()
 
 		const result = await handlers["before_agent_start"]?.[0]?.(
 			{ systemPrompt: "base", prompt: "coordinate", images: [] },
-			createToolContext(repoRoot, leaderSessionFile),
+			createToolContext(repoRoot, mayorSessionFile),
 		)
 
 		expect(result).toEqual(
@@ -182,11 +182,11 @@ describe("pi town extension", () => {
 	})
 
 	it("renders the live board for town-managed sessions", async () => {
-		const { repoRoot, leaderSessionFile } = createRepoArtifacts()
+		const { repoRoot, mayorSessionFile } = createRepoArtifacts()
 		const { tools } = setup()
 		const boardTool = tools.get("pitown_board")
 
-		const result = await boardTool?.execute("tool-call", {}, undefined, () => {}, createToolContext(repoRoot, leaderSessionFile))
+		const result = await boardTool?.execute("tool-call", {}, undefined, () => {}, createToolContext(repoRoot, mayorSessionFile))
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -195,7 +195,7 @@ describe("pi town extension", () => {
 		)
 	})
 
-	it("blocks workers from messaging non-leader agents directly", async () => {
+	it("blocks workers from messaging non-mayor agents directly", async () => {
 		const { repoRoot, workerSessionFile } = createRepoArtifacts()
 		const { tools } = setup()
 		const messageTool = tools.get("pitown_message_agent")
@@ -208,7 +208,7 @@ describe("pi town extension", () => {
 				() => {},
 				createToolContext(repoRoot, workerSessionFile),
 			),
-		).rejects.toThrow("Only the leader may message non-leader agents")
+		).rejects.toThrow("Only the mayor may message non-mayor agents")
 	})
 
 	it("updates worker state and task status through the status tool", async () => {
@@ -238,10 +238,10 @@ describe("pi town extension", () => {
 	})
 
 	it("enables mayor plan mode with a read-only tool set", async () => {
-		const { repoRoot, leaderSessionFile } = createRepoArtifacts()
+		const { repoRoot, mayorSessionFile } = createRepoArtifacts()
 		const { commands, activeTools, appendedEntries } = setup()
 		const planCommand = commands.get("plan") as { handler: RegisteredHandler } | undefined
-		const ctx = createToolContext(repoRoot, leaderSessionFile)
+		const ctx = createToolContext(repoRoot, mayorSessionFile)
 
 		await planCommand?.handler([], ctx)
 
@@ -254,10 +254,10 @@ describe("pi town extension", () => {
 	})
 
 	it("captures numbered mayor plan steps after a planning turn", async () => {
-		const { repoRoot, leaderSessionFile } = createRepoArtifacts()
+		const { repoRoot, mayorSessionFile } = createRepoArtifacts()
 		const { commands, handlers, pi } = setup()
 		const planCommand = commands.get("plan") as { handler: RegisteredHandler } | undefined
-		const ctx = createToolContext(repoRoot, leaderSessionFile)
+		const ctx = createToolContext(repoRoot, mayorSessionFile)
 
 		await planCommand?.handler([], ctx)
 		await handlers["agent_end"]?.[0]?.(

@@ -20,7 +20,22 @@ export function showTownBoard(argv = process.argv.slice(2)) {
 	const branch = getCurrentBranch(repo.repoRoot)
 	const branchLabel = branch ? ` (${branch})` : ""
 
+	const mayor = agents.find((a) => a.agentId === "mayor")
+	const workers = agents.filter((a) => a.agentId !== "mayor")
+	const workersByStatus = (status: string) => workers.filter((a) => a.status === status).length
+
 	console.log(`[pitown] board — ${repoName}${branchLabel}`)
+	if (mayor) {
+		const spawned = workers.length
+		const running = workersByStatus("running") + workersByStatus("starting")
+		const completed = workersByStatus("completed") + workersByStatus("idle")
+		const blocked = workersByStatus("blocked") + workersByStatus("failed")
+		const parts = [`${spawned} spawned`]
+		if (running > 0) parts.push(`${running} running`)
+		if (completed > 0) parts.push(`${completed} done`)
+		if (blocked > 0) parts.push(`${blocked} blocked`)
+		console.log(`Mayor workers: ${parts.join(", ")}`)
+	}
 
 	// --- Agents section ---
 	console.log("")

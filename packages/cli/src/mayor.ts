@@ -15,12 +15,12 @@ import { resolveRepoContext } from "./repo-context.js"
 import { runTown } from "./run.js"
 
 function startFreshMayorSession(repoRoot: string, artifactsDir: string) {
-	const sessionDir = getAgentSessionsDir(artifactsDir, "leader")
+	const sessionDir = getAgentSessionsDir(artifactsDir, "mayor")
 	writeAgentState(
 		artifactsDir,
 		createAgentState({
-			agentId: "leader",
-			role: "leader",
+			agentId: "mayor",
+			role: "mayor",
 			status: "running",
 			task: "open the mayor session and plan the next steps for this repository",
 			lastMessage: "Mayor session opened",
@@ -37,7 +37,7 @@ function startFreshMayorSession(repoRoot: string, artifactsDir: string) {
 	const exitCode = runCommandInteractive(
 		"pi",
 		createPiTownRuntimeArgs({
-			agentId: "leader",
+			agentId: "mayor",
 			sessionDir,
 		}),
 		{
@@ -45,8 +45,8 @@ function startFreshMayorSession(repoRoot: string, artifactsDir: string) {
 			env: process.env,
 		},
 	)
-	const latestSession = getLatestAgentSession(artifactsDir, "leader")
-	const previousState = readAgentState(artifactsDir, "leader")
+	const latestSession = getLatestAgentSession(artifactsDir, "mayor")
+	const previousState = readAgentState(artifactsDir, "mayor")
 	if (previousState !== null) {
 		writeAgentState(
 			artifactsDir,
@@ -71,7 +71,7 @@ function startFreshMayorSession(repoRoot: string, artifactsDir: string) {
 export function openTownMayor(argv = process.argv.slice(2)) {
 	const repo = resolveRepoContext(argv)
 	const message = repo.rest.join(" ").trim()
-	const mayorState = readAgentState(repo.artifactsDir, "leader")
+	const mayorState = readAgentState(repo.artifactsDir, "mayor")
 
 	if (mayorState === null) {
 		assertCommandAvailable("pi")

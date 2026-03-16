@@ -35,7 +35,7 @@ const ROLE_STATUS = Type.Union([
 ])
 
 const toolPermissions: Record<string, TownToolName[]> = {
-	leader: ["pitown_board", "pitown_delegate", "pitown_message_agent", "pitown_peek_agent", "pitown_update_status"],
+	mayor: ["pitown_board", "pitown_delegate", "pitown_message_agent", "pitown_peek_agent", "pitown_update_status"],
 	worker: ["pitown_board", "pitown_message_agent", "pitown_peek_agent", "pitown_update_status"],
 	reviewer: ["pitown_board", "pitown_message_agent", "pitown_peek_agent", "pitown_update_status"],
 	"docs-keeper": ["pitown_board", "pitown_message_agent", "pitown_peek_agent", "pitown_update_status"],
@@ -74,18 +74,18 @@ function assertPermission(context: TownAgentContext, toolName: TownToolName, tar
 		throw new Error(`${context.role} agents may not use ${toolName}`)
 	}
 
-	if (toolName === "pitown_delegate" && context.role !== "leader") {
-		throw new Error("Only the leader may delegate work")
+	if (toolName === "pitown_delegate" && context.role !== "mayor") {
+		throw new Error("Only the mayor may delegate work")
 	}
 
-	if (toolName === "pitown_message_agent" && context.role !== "leader" && targetAgentId && targetAgentId !== "leader") {
-		throw new Error("Only the leader may message non-leader agents")
+	if (toolName === "pitown_message_agent" && context.role !== "mayor" && targetAgentId && targetAgentId !== "mayor") {
+		throw new Error("Only the mayor may message non-mayor agents")
 	}
 
-	if (toolName === "pitown_peek_agent" && context.role !== "leader" && targetAgentId) {
-		const allowedTargets = new Set([context.agentId, "leader"])
+	if (toolName === "pitown_peek_agent" && context.role !== "mayor" && targetAgentId) {
+		const allowedTargets = new Set([context.agentId, "mayor"])
 		if (!allowedTargets.has(targetAgentId)) {
-			throw new Error("Non-leader agents may only peek themselves or the leader")
+			throw new Error("Non-mayor agents may only peek themselves or the mayor")
 		}
 	}
 }
@@ -191,7 +191,7 @@ export function registerTownTools(pi: ExtensionAPI) {
 				task: input.task,
 				agentId: input.agentId ?? null,
 				extensionPath: resolvePiTownExtensionPath(),
-				appendedSystemPrompt: input.role === "leader" ? readPiTownMayorPrompt() : null,
+				appendedSystemPrompt: input.role === "mayor" ? readPiTownMayorPrompt() : null,
 			})
 
 			return {

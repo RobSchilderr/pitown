@@ -20,7 +20,7 @@ export function messageTownAgent(argv = process.argv.slice(2)) {
 	queueAgentMessage({ artifactsDir: repo.artifactsDir, agentId, from: "human", body })
 
 	const deliveredResult =
-		state.role === "leader"
+		state.role === "mayor"
 			? runAgentTurn({
 					repoRoot: repo.repoRoot,
 					artifactsDir: repo.artifactsDir,
@@ -41,6 +41,6 @@ export function messageTownAgent(argv = process.argv.slice(2)) {
 	console.log(`- queued message: ${body}`)
 	if (deliveredResult) {
 		console.log(`- delivered to session: ${deliveredResult.latestSession.sessionPath}`)
-		console.log(`- leader response: ${deliveredResult.completionMessage}`)
+		console.log(`- mayor response: ${deliveredResult.completionMessage}`)
 	}
 }

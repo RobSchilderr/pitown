@@ -181,7 +181,7 @@ export interface ControllerRunResult {
 export type LoopStopReason =
 	| "all-tasks-completed"
 	| "all-remaining-tasks-blocked"
-	| "leader-blocked"
+	| "mayor-blocked"
 	| "max-iterations-reached"
 	| "max-wall-time-reached"
 	| "pi-exit-nonzero"
@@ -201,7 +201,7 @@ export interface BoardSnapshot {
 	agents: Array<{ agentId: string; status: AgentStatus; blocked: boolean }>
 	allTasksCompleted: boolean
 	allRemainingTasksBlocked: boolean
-	leaderBlocked: boolean
+	mayorBlocked: boolean
 	hasQueuedOrRunningWork: boolean
 }
 

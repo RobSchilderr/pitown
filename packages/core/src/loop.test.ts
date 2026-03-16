@@ -52,7 +52,7 @@ function emptyBoard(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
 		agents: [],
 		allTasksCompleted: false,
 		allRemainingTasksBlocked: false,
-		leaderBlocked: false,
+		mayorBlocked: false,
 		hasQueuedOrRunningWork: false,
 		...overrides,
 	}
@@ -134,7 +134,7 @@ describe("evaluateStopCondition", () => {
 		expect(result.stopReason).toBe("all-tasks-completed")
 	})
 
-	it("stops when leader blocked", () => {
+	it("stops when mayor blocked", () => {
 		const result = evaluateStopCondition({
 			iteration: 1,
 			maxIterations: 10,
@@ -142,11 +142,11 @@ describe("evaluateStopCondition", () => {
 			maxWallTimeMs: 3_600_000,
 			piExitCode: 0,
 			stopOnPiFailure: true,
-			board: emptyBoard({ leaderBlocked: true }),
+			board: emptyBoard({ mayorBlocked: true }),
 			metrics: emptyMetrics(),
 			interruptRateThreshold: null,
 		})
-		expect(result.stopReason).toBe("leader-blocked")
+		expect(result.stopReason).toBe("mayor-blocked")
 	})
 
 	it("stops when all remaining tasks blocked", () => {
@@ -221,7 +221,7 @@ describe("snapshotBoard", () => {
 		expect(board.agents).toEqual([])
 		expect(board.allTasksCompleted).toBe(false)
 		expect(board.allRemainingTasksBlocked).toBe(false)
-		expect(board.leaderBlocked).toBe(false)
+		expect(board.mayorBlocked).toBe(false)
 		expect(board.hasQueuedOrRunningWork).toBe(false)
 	})
 
@@ -237,7 +237,7 @@ describe("snapshotBoard", () => {
 				status: "completed",
 				role: "dev",
 				assignedAgentId: "a1",
-				createdBy: "leader",
+				createdBy: "mayor",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),
@@ -249,15 +249,15 @@ describe("snapshotBoard", () => {
 		expect(board.tasks[0].status).toBe("completed")
 	})
 
-	it("detects leader blocked", () => {
+	it("detects mayor blocked", () => {
 		const artifactsDir = mkdtempSync(join(tmpdir(), "pi-town-snap-"))
-		const leaderDir = join(artifactsDir, "agents", "leader")
-		mkdirSync(leaderDir, { recursive: true })
+		const mayorDir = join(artifactsDir, "agents", "mayor")
+		mkdirSync(mayorDir, { recursive: true })
 		writeFileSync(
-			join(leaderDir, "state.json"),
+			join(mayorDir, "state.json"),
 			JSON.stringify({
-				agentId: "leader",
-				role: "leader",
+				agentId: "mayor",
+				role: "mayor",
 				status: "blocked",
 				taskId: null,
 				task: null,
@@ -272,7 +272,7 @@ describe("snapshotBoard", () => {
 			"utf-8",
 		)
 		const board = snapshotBoard(artifactsDir)
-		expect(board.leaderBlocked).toBe(true)
+		expect(board.mayorBlocked).toBe(true)
 	})
 
 	it("detects queued or running work", () => {
@@ -287,7 +287,7 @@ describe("snapshotBoard", () => {
 				status: "running",
 				role: "dev",
 				assignedAgentId: "a1",
-				createdBy: "leader",
+				createdBy: "mayor",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),
@@ -362,9 +362,9 @@ describe("runLoop", () => {
 		})
 
 		// Should run all 2 iterations despite exit code 1
-		// Leader becomes blocked after exit code 1, so it stops on leader-blocked
+		// Mayor becomes blocked after exit code 1, so it stops on mayor-blocked
 		expect(result.totalIterations).toBeLessThanOrEqual(2)
-		expect(["max-iterations-reached", "leader-blocked"]).toContain(result.stopReason)
+		expect(["max-iterations-reached", "mayor-blocked"]).toContain(result.stopReason)
 	})
 
 	it("respects wall time limit", () => {
@@ -407,7 +407,7 @@ describe("runLoop", () => {
 				status: "completed",
 				role: "dev",
 				assignedAgentId: "a1",
-				createdBy: "leader",
+				createdBy: "mayor",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),

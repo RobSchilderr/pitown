@@ -88,30 +88,30 @@ describe("agent control plane commands", () => {
 			"repos",
 			repoSlug,
 			"agents",
-			"leader",
+			"mayor",
 			"sessions",
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
 
-		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "leader", "--agent", "leader", "--task", "coordinate auth work"]))
-		const msgOutput = captureLogs(() => messageTownAgent(["--repo", repo, "leader", "check the failing callback tests"]))
+		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]))
+		const msgOutput = captureLogs(() => messageTownAgent(["--repo", repo, "mayor", "check the failing callback tests"]))
 		expect(msgOutput.join("\n")).toContain(`- delivered to session: ${sessionPath}`)
-		expect(msgOutput.join("\n")).toContain("- leader response: pi worker summary")
+		expect(msgOutput.join("\n")).toContain("- mayor response: pi worker summary")
 
 		const boardOutput = captureLogs(() => showTownBoard(["--repo", repo]))
 		expect(boardOutput.join("\n")).toContain("[pitown] board")
-		expect(boardOutput.join("\n")).toContain("leader")
+		expect(boardOutput.join("\n")).toContain("mayor")
 		expect(boardOutput.join("\n")).toContain("pi worker summary")
 
-		const peekOutput = captureLogs(() => peekTownAgent(["--repo", repo, "leader"]))
-		expect(peekOutput.join("\n")).toContain("- role: leader")
+		const peekOutput = captureLogs(() => peekTownAgent(["--repo", repo, "mayor"]))
+		expect(peekOutput.join("\n")).toContain("- role: mayor")
 		expect(peekOutput.join("\n")).toContain("- status: idle")
 		expect(peekOutput.join("\n")).toContain("human: check the failing callback tests")
-		expect(peekOutput.join("\n")).toContain("leader: pi worker summary")
+		expect(peekOutput.join("\n")).toContain("mayor: pi worker summary")
 
 		expect(existsSync(join(home, ".pi-town", "repos"))).toBe(true)
 		expect(
-			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "state.json"), "utf-8")) as {
+			JSON.parse(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8")) as {
 				lastMessage: string
 			},
 		).toEqual(
@@ -160,20 +160,20 @@ describe("agent control plane commands", () => {
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
 		mkdirSync(repo, { recursive: true })
 
-		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "leader", "--agent", "leader", "--task", "coordinate auth work"]))
+		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]))
 		const sessionPath = join(
 			home,
 			".pi-town",
 			"repos",
 			repoSlug,
 			"agents",
-			"leader",
+			"mayor",
 			"sessions",
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
 
-		captureLogs(() => attachTownAgent(["--repo", repo, "leader"]))
-		captureLogs(() => continueTownAgent(["--repo", repo, "leader", "follow up on the auth test failures"]))
+		captureLogs(() => attachTownAgent(["--repo", repo, "mayor"]))
+		captureLogs(() => continueTownAgent(["--repo", repo, "mayor", "follow up on the auth test failures"]))
 
 		const invocations = readFileSync(logPath, "utf-8")
 			.trim()
@@ -186,7 +186,7 @@ describe("agent control plane commands", () => {
 		expect(invocations.at(-1)).toContain("--extension")
 
 		const state = JSON.parse(
-			readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "state.json"), "utf-8"),
+			readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8"),
 		) as {
 			session: { sessionPath: string; sessionId: string }
 		}
@@ -194,7 +194,7 @@ describe("agent control plane commands", () => {
 		expect(state.session.sessionId).toBe("12345678-1234-1234-1234-123456789abc")
 	})
 
-	it("delegates from the leader into a worker with a durable task record", () => {
+	it("delegates from the mayor into a worker with a durable task record", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-town-home-"))
 		process.env.HOME = home
 
@@ -207,9 +207,9 @@ describe("agent control plane commands", () => {
 		const repoSlug = createRepoSlug(getRepoIdentity(resolve(repo)), resolve(repo))
 		mkdirSync(repo, { recursive: true })
 
-		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "leader", "--agent", "leader", "--task", "coordinate auth work"]))
+		captureLogs(() => spawnTownAgent(["--repo", repo, "--role", "mayor", "--agent", "mayor", "--task", "coordinate auth work"]))
 		const delegateOutput = captureLogs(() =>
-			delegateTownTask(["--repo", repo, "--from", "leader", "--role", "worker", "--agent", "worker-001", "--task", "fix callback auth regression"]),
+			delegateTownTask(["--repo", repo, "--from", "mayor", "--role", "worker", "--agent", "worker-001", "--task", "fix callback auth regression"]),
 		)
 		expect(delegateOutput.join("\n")).toContain("[pitown] delegate")
 		expect(delegateOutput.join("\n")).toContain("- agent: worker-001")
@@ -234,17 +234,17 @@ describe("agent control plane commands", () => {
 			expect.objectContaining({
 				taskId: workerState.taskId,
 				assignedAgentId: "worker-001",
-				createdBy: "leader",
+				createdBy: "mayor",
 				role: "worker",
 				status: "completed",
 			}),
 		)
 
-		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "outbox.jsonl"), "utf-8")).toContain(
+		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "outbox.jsonl"), "utf-8")).toContain(
 			`Delegated ${workerState.taskId} to worker-001`,
 		)
 		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "worker-001", "inbox.jsonl"), "utf-8")).toContain(
-			`Delegated by leader as ${workerState.taskId}`,
+			`Delegated by mayor as ${workerState.taskId}`,
 		)
 	})
 
@@ -270,20 +270,20 @@ describe("agent control plane commands", () => {
 			"repos",
 			repoSlug,
 			"agents",
-			"leader",
+			"mayor",
 			"sessions",
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
 		const invocations = readFileSync(logPath, "utf-8").trim().split("\n")
 		expect(invocations.at(-1)).toContain(
-			`--session-dir ${join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "sessions")}`,
+			`--session-dir ${join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "sessions")}`,
 		)
 		expect(invocations.at(-1)).toContain("--extension")
 		expect(invocations.at(-1)).toContain("--append-system-prompt")
-		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "state.json"), "utf-8")).toContain(
-			'"role": "leader"',
+		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "state.json"), "utf-8")).toContain(
+			'"role": "mayor"',
 		)
-		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "session.json"), "utf-8")).toContain(
+		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "session.json"), "utf-8")).toContain(
 			sessionPath,
 		)
 	})
@@ -309,18 +309,18 @@ describe("agent control plane commands", () => {
 			"repos",
 			repoSlug,
 			"agents",
-			"leader",
+			"mayor",
 			"sessions",
 			"2026-03-16T15-00-00-000Z_12345678-1234-1234-1234-123456789abc.jsonl",
 		)
 
 		const invocations = readFileSync(logPath, "utf-8").trim().split("\n")
 		expect(invocations.at(-1)).toContain(
-			`--session-dir ${join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "sessions")}`,
+			`--session-dir ${join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "sessions")}`,
 		)
 		expect(invocations.at(-1)).toContain("--extension")
 		expect(invocations.at(-1)).toContain("--append-system-prompt")
-		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "leader", "session.json"), "utf-8")).toContain(
+		expect(readFileSync(join(home, ".pi-town", "repos", repoSlug, "agents", "mayor", "session.json"), "utf-8")).toContain(
 			sessionPath,
 		)
 	})

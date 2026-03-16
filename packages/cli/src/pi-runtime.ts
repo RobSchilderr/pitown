@@ -9,7 +9,7 @@ export interface PiTownRuntimeArgsOptions {
 }
 
 export function isMayorAgent(agentId: string) {
-	return agentId === "leader" || agentId === "mayor"
+	return agentId === "mayor"
 }
 
 export function createPiTownRuntimeArgs(options: PiTownRuntimeArgsOptions): string[] {

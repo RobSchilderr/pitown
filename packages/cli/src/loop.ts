@@ -59,12 +59,12 @@ export function loopTown(argv = process.argv.slice(2)): LoopRunResult {
 			const taskSummary = board.tasks.length > 0
 				? `${board.tasks.length} tasks (${board.tasks.filter((t) => t.status === "completed").length} completed, ${board.tasks.filter((t) => t.status === "running").length} running)`
 				: "no tasks tracked"
-			const leaderStatus = board.agents.find((a) => a.agentId === "leader")?.status ?? "unknown"
+			const mayorStatus = board.agents.find((a) => a.agentId === "mayor")?.status ?? "unknown"
 
 			console.log(`[pitown-loop] iteration ${iteration.iteration}/${config.maxIterations} completed (${formatMs(iteration.elapsedMs)})`)
 			console.log(`  - pi exit code: ${iteration.controllerResult.piInvocation.exitCode}`)
 			console.log(`  - run: ${iteration.controllerResult.runId}`)
-			console.log(`  - board: ${taskSummary}, leader ${leaderStatus}`)
+			console.log(`  - board: ${taskSummary}, mayor ${mayorStatus}`)
 			console.log(`  - metrics: interrupt rate ${iteration.metrics.interruptRate}, autonomous completion ${iteration.metrics.autonomousCompletionRate}`)
 			if (iteration.stopReason) {
 				console.log(`  - stopping: ${iteration.stopReason}`)

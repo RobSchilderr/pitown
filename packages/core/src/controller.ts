@@ -57,7 +57,7 @@ function createPiPrompt(input: {
 
 	if (input.planPath) {
 		return [
-			"You are the Pi Town leader agent for this repository.",
+			"You are the Pi Town mayor agent for this repository.",
 			"Coordinate the next bounded unit of work, keep updates concise, and leave a durable artifact trail.",
 			"",
 			"Read the private plans in:",
@@ -73,7 +73,7 @@ function createPiPrompt(input: {
 	}
 
 	return [
-		"You are the Pi Town leader agent for this repository.",
+		"You are the Pi Town mayor agent for this repository.",
 		"Coordinate the next bounded unit of work, keep updates concise, and leave a durable artifact trail.",
 		"",
 		`Work in the repository at: ${input.repoRoot}`,
@@ -192,24 +192,24 @@ export function runController(options: RunOptions): ControllerRunResult {
 	const stdoutPath = join(runDir, "stdout.txt")
 	const stderrPath = join(runDir, "stderr.txt")
 	const prompt = createPiPrompt({ repoRoot, planPath, goal, recommendedPlanDir })
-	const existingLeaderState = readAgentState(artifactsDir, "leader")
-	const existingLeaderSession =
-		existingLeaderState?.session.sessionPath || existingLeaderState?.session.sessionDir
-			? existingLeaderState.session
-			: getLatestAgentSession(artifactsDir, "leader")
-	const leaderSessionDir = existingLeaderSession.sessionDir ?? getAgentSessionsDir(artifactsDir, "leader")
-	const leaderState = createAgentState({
-		agentId: "leader",
-		role: "leader",
+	const existingMayorState = readAgentState(artifactsDir, "mayor")
+	const existingMayorSession =
+		existingMayorState?.session.sessionPath || existingMayorState?.session.sessionDir
+			? existingMayorState.session
+			: getLatestAgentSession(artifactsDir, "mayor")
+	const mayorSessionDir = existingMayorSession.sessionDir ?? getAgentSessionsDir(artifactsDir, "mayor")
+	const mayorState = createAgentState({
+		agentId: "mayor",
+		role: "mayor",
 		status: "starting",
 		task: goal,
 		branch,
-		lastMessage: goal ? `Starting leader run for goal: ${goal}` : "Starting leader run",
+		lastMessage: goal ? `Starting mayor run for goal: ${goal}` : "Starting mayor run",
 		runId,
 		session: createAgentSessionRecord({
-			sessionDir: leaderSessionDir,
-			sessionId: existingLeaderSession.sessionId,
-			sessionPath: existingLeaderSession.sessionPath,
+			sessionDir: mayorSessionDir,
+			sessionId: existingMayorSession.sessionId,
+			sessionPath: existingMayorSession.sessionPath,
 		}),
 	})
 
@@ -224,7 +224,7 @@ export function runController(options: RunOptions): ControllerRunResult {
 		status: "starting",
 		updatedAt: new Date().toISOString(),
 	})
-	writeAgentState(artifactsDir, leaderState)
+	writeAgentState(artifactsDir, mayorState)
 
 	const lease = acquireRepoLease(runId, repoId, branch)
 
@@ -262,15 +262,15 @@ export function runController(options: RunOptions): ControllerRunResult {
 		writeAgentState(
 			artifactsDir,
 			createAgentState({
-				...leaderState,
+				...mayorState,
 				status: "running",
-				lastMessage: goal ? `Leader working on: ${goal}` : "Leader working",
+				lastMessage: goal ? `Mayor working on: ${goal}` : "Mayor working",
 			}),
 		)
 
 		const piArgs = createPiInvocationArgs({
-			sessionDir: leaderState.session.sessionPath === null ? leaderSessionDir : null,
-			sessionPath: leaderState.session.sessionPath,
+			sessionDir: mayorState.session.sessionPath === null ? mayorSessionDir : null,
+			sessionPath: mayorState.session.sessionPath,
 			prompt,
 			appendedSystemPrompt: options.appendedSystemPrompt,
 			extensionPath: options.extensionPath,
@@ -280,7 +280,7 @@ export function runController(options: RunOptions): ControllerRunResult {
 			env: process.env,
 		})
 		const piEndedAt = new Date().toISOString()
-		const latestLeaderSession = getLatestAgentSession(artifactsDir, "leader")
+		const latestMayorSession = getLatestAgentSession(artifactsDir, "mayor")
 
 		writeText(stdoutPath, piResult.stdout)
 		writeText(stderrPath, piResult.stderr)
@@ -291,9 +291,9 @@ export function runController(options: RunOptions): ControllerRunResult {
 			repoRoot,
 			planPath,
 			goal,
-			sessionDir: latestLeaderSession.sessionDir,
-			sessionId: latestLeaderSession.sessionId,
-			sessionPath: latestLeaderSession.sessionPath,
+			sessionDir: latestMayorSession.sessionDir,
+			sessionId: latestMayorSession.sessionId,
+			sessionPath: latestMayorSession.sessionPath,
 			startedAt: piStartedAt,
 			endedAt: piEndedAt,
 			exitCode: piResult.exitCode,
@@ -349,18 +349,18 @@ export function runController(options: RunOptions): ControllerRunResult {
 		writeAgentState(
 			artifactsDir,
 			createAgentState({
-				...leaderState,
+				...mayorState,
 					status: piInvocation.exitCode === 0 ? "idle" : "blocked",
 					lastMessage:
 						piInvocation.exitCode === 0
-							? "Leader run completed and is ready for the next instruction"
-							: `Leader run stopped with exit code ${piInvocation.exitCode}`,
+							? "Mayor run completed and is ready for the next instruction"
+							: `Mayor run stopped with exit code ${piInvocation.exitCode}`,
 					blocked: piInvocation.exitCode !== 0,
 					waitingOn: piInvocation.exitCode === 0 ? null : "human-or-follow-up-run",
 					session: createAgentSessionRecord({
-						sessionDir: latestLeaderSession.sessionDir,
-						sessionId: latestLeaderSession.sessionId,
-						sessionPath: latestLeaderSession.sessionPath,
+						sessionDir: latestMayorSession.sessionDir,
+						sessionId: latestMayorSession.sessionId,
+						sessionPath: latestMayorSession.sessionPath,
 					}),
 				}),
 			)

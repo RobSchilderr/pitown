@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 export const bundledAgentNames = [
-	"leader",
+	"mayor",
 	"supervisor",
 	"scout",
 	"planner",
@@ -27,7 +27,7 @@ export function resolvePiTownExtensionPath() {
 }
 
 export function resolvePiTownMayorPromptPath() {
-	return join(resolvePackageRoot(), "pi", "agents", "leader.md")
+	return join(resolvePackageRoot(), "pi", "agents", "mayor.md")
 }
 
 export function readPiTownMayorPrompt() {

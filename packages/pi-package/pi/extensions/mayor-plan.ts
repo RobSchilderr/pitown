@@ -46,7 +46,7 @@ function resolvePlanTools(candidateTools: string[]): string[] {
 function isMayorSession(ctx: ExtensionContext): boolean {
 	const context = resolveTownAgentContext(ctx.sessionManager.getSessionFile())
 	if (context === null) return false
-	return context.agentId === "leader" || context.role === "leader" || context.role === "mayor"
+	return context.agentId === "mayor" || context.role === "mayor"
 }
 
 function persistPlanState(pi: ExtensionAPI, enabled: boolean, savedTools: string[], todos: PlanTodo[]) {

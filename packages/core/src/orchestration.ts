@@ -91,9 +91,9 @@ export function createRolePrompt(input: { role: string; task: string | null; rep
 	const task = input.task ?? "pick the next bounded task from the current repo context"
 
 	switch (input.role) {
-		case "leader":
+		case "mayor":
 			return [
-				"You are the Pi Town leader.",
+				"You are the Pi Town mayor.",
 				"You coordinate work for this repository and act as the primary human-facing agent.",
 				"",
 				`Repository: ${input.repoRoot}`,

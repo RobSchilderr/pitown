@@ -41,8 +41,8 @@ export function snapshotBoard(artifactsDir: string): BoardSnapshot {
 	const allRemainingTasksBlocked =
 		tasks.length > 0 && tasks.every((task) => task.status === "completed" || task.status === "blocked")
 
-	const leader = agents.find((agent) => agent.agentId === "leader")
-	const leaderBlocked = leader?.blocked === true
+	const mayor = agents.find((agent) => agent.agentId === "mayor")
+	const mayorBlocked = mayor?.blocked === true
 
 	const hasQueuedOrRunningWork =
 		agents.some((agent) => agent.status === "queued" || agent.status === "running" || agent.status === "starting") ||
@@ -53,7 +53,7 @@ export function snapshotBoard(artifactsDir: string): BoardSnapshot {
 		agents: agentEntries,
 		allTasksCompleted,
 		allRemainingTasksBlocked,
-		leaderBlocked,
+		mayorBlocked,
 		hasQueuedOrRunningWork,
 	}
 }
@@ -85,8 +85,8 @@ export function evaluateStopCondition(input: {
 		return { stopReason: "all-tasks-completed", continueReason: null }
 	}
 
-	if (input.board.leaderBlocked) {
-		return { stopReason: "leader-blocked", continueReason: null }
+	if (input.board.mayorBlocked) {
+		return { stopReason: "mayor-blocked", continueReason: null }
 	}
 
 	if (input.board.allRemainingTasksBlocked) {
@@ -103,7 +103,7 @@ export function evaluateStopCondition(input: {
 	const reasons: string[] = []
 	if (input.board.hasQueuedOrRunningWork) reasons.push("queued or running work remains")
 	if (input.board.tasks.length === 0) reasons.push("no tasks tracked yet")
-	if (reasons.length === 0) reasons.push("leader idle, no stop condition met")
+	if (reasons.length === 0) reasons.push("mayor idle, no stop condition met")
 
 	return { stopReason: null, continueReason: reasons.join("; ") }
 }
